@@ -5,3 +5,5 @@ node_modules/
 uploads/
 dist/
 PROGRESS.md
+.claude/
+*.docx
