@@ -65,8 +65,9 @@ export function EmergencyFund() {
         {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Stat
-            label="Liquid Cash (Checking + Savings)"
+            label="Liquid Cash (after goals)"
             value={currency(data.current)}
+            sub={data.allocated_to_goals > 0 ? `${currency(data.liquid_cash)} − ${currency(data.allocated_to_goals)} goals` : undefined}
           />
           <Stat
             label={`Target (${data.target_months} mo × avg expenses)`}
@@ -155,12 +156,13 @@ export function EmergencyFund() {
   );
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function Stat({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
   const textColor = color === 'green' ? 'text-emerald-400' : color === 'yellow' ? 'text-yellow-400' : color === 'red' ? 'text-red-400' : 'text-white';
   return (
     <div className="bg-gray-800 rounded-lg p-4">
       <p className="text-xs text-gray-400 mb-1 leading-tight">{label}</p>
       <p className={`text-lg font-bold ${textColor}`}>{value}</p>
+      {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
     </div>
   );
 }
