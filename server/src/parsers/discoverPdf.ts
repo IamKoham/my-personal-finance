@@ -62,10 +62,11 @@ export function parseDiscoverPdf(text: string): {
 
     if (section === 'none') continue;
 
-    // Payment line: MM/DD followed by description, ending with -$amount or -amount
-    // e.g. "03/14AUTOMATIC STATEMENT CREDIT-$10.05" or "04/08DIRECTPAY FULL BALANCE-$309.27"
+    // Payment line: any date-prefixed line ending in -$amount (regardless of section).
+    // Both section headers appear together in pdf-parse output so section detection alone
+    // is unreliable — the negative-amount sign is the definitive classifier.
     const payMatch = line.match(/^(\d{2}\/\d{2})(.+?)-\$?([\d,]+\.\d{2})$/);
-    if (payMatch && section === 'payments') {
+    if (payMatch) {
       const date = parseMD(payMatch[1]);
       const desc = payMatch[2].trim();
       const amount = parseFloat(payMatch[3].replace(/,/g, ''));
