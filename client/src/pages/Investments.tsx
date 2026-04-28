@@ -134,18 +134,27 @@ export function Investments() {
         <Section title="Etrade — RSU Grants">
           <div className="grid grid-cols-3 gap-4 mb-4">
             <Stat label="Total Vested Value" value={currency(rsu.totalVestedValue)} />
-            <Stat label="Total Unvested Shares" value={String(rsu.totalUnvested)} color="yellow" />
+            <Stat label="Total Unvested Shares" value={String(rsu.totalUnvestedQty ?? '—')} color="yellow" />
             <Stat label="Grants" value={String(rsu.grants.length)} />
           </div>
           <div className="space-y-2">
-            {rsu.grants.map((g: any, i: number) => (
-              <div key={i} className="bg-gray-800 rounded-lg p-3 grid grid-cols-4 gap-3 text-xs">
-                <div><span className="text-gray-500 block">Symbol</span><span className="text-white font-medium">{g.symbol}</span></div>
-                <div><span className="text-gray-500 block">Vested / Unvested</span><span className="text-white">{g.vested_qty} / <span className="text-yellow-400">{g.unvested_qty}</span></span></div>
-                <div><span className="text-gray-500 block">Market Value</span><span className="text-white">{currency(g.market_value)}</span></div>
-                <div><span className="text-gray-500 block">Next Vest</span><span className="text-white">{g.vest_date || "—"}</span></div>
-              </div>
-            ))}
+            {rsu.grants.map((g: any, i: number) => {
+              const grantedQty = Number(g.granted_qty) || 1;
+              const vestedValue = Number(g.market_value) * Number(g.vested_qty) / grantedQty;
+              const unvestedValue = Number(g.market_value) * Number(g.unvested_qty) / grantedQty;
+              return (
+                <div key={i} className="bg-gray-800 rounded-lg p-3 grid grid-cols-4 gap-3 text-xs">
+                  <div><span className="text-gray-500 block">Symbol</span><span className="text-white font-medium">{g.symbol}</span></div>
+                  <div>
+                    <span className="text-gray-500 block">Vested / Unvested</span>
+                    <span className="text-white">{g.vested_qty} <span className="text-gray-500">({currency(vestedValue)})</span></span>
+                    <span className="text-yellow-400 block">{g.unvested_qty} unvested <span className="text-gray-500">({currency(unvestedValue)})</span></span>
+                  </div>
+                  <div><span className="text-gray-500 block">Grant Market Value</span><span className="text-white">{currency(g.market_value)}</span></div>
+                  <div><span className="text-gray-500 block">Next Vest</span><span className="text-white">{g.vest_date || "—"}</span></div>
+                </div>
+              );
+            })}
           </div>
         </Section>
       )}

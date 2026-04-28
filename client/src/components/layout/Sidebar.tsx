@@ -4,7 +4,7 @@ import { LayoutDashboard, CreditCard, TrendingDown, TrendingUp, Target, Shield, 
 const NAV = [
   { to: "/",               icon: LayoutDashboard, label: "Overview" },
   { to: "/accounts",       icon: CreditCard,      label: "Accounts" },
-  { to: "/spending",       icon: TrendingDown,    label: "Spending" },
+  { to: "/spending",       icon: TrendingDown,    label: "Expenses" },
   { to: "/investments",    icon: TrendingUp,      label: "Investments" },
   { to: "/goals",          icon: Target,          label: "Goals" },
   { to: "/emergency-fund", icon: Shield,          label: "Emergency Fund" },

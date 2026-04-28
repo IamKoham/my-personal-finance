@@ -8,8 +8,8 @@ export const CATEGORY_MAP: Record<string, string[]> = {
   Health:        ['cvs','walgreens','pharmacy','doctor','dental','vision','kaiser','insurance','medical','clinic','hospital'],
   Shopping:      ['amazon','ebay','etsy','best buy','apple store','nike','gap','zara','h&m','nordstrom','tj maxx','ross','marshall','old navy','uniqlo','ikea','home depot','lowe','wayfair'],
   Travel:        ['airline','united','delta','southwest','airbnb','hotel','marriott','hilton','expedia','booking','kayak','amtrak','spirit','alaska air','frontier','jetblue'],
-  Income:        ['direct deposit','payroll','zelle from','venmo from','transfer from','interest payment','refund','cashback','ach credit','deposit'],
-  Investments:   ['buy nflx','buy amzn','buy fig','espp purchase','ach deposit'],
+  Income:        ['direct deposit','payroll','zelle from','venmo from','transfer from','interest payment','refund','cashback','ach credit'],
+  Investments:   ['buy nflx','buy amzn','buy fig','espp purchase','robinhood','etrade','e*trade','fidelity','vanguard','schwab','brokerage transfer','investment transfer','buy order'],
   Gasoline:      ['bp','exxon','mobil'],
 };
 
@@ -28,12 +28,12 @@ const BANK_CATEGORY_MAP: Record<string, string> = {
   'Auto & Transport': 'Transport',
   'Bills & Utilities':'Utilities',
   'Health & Fitness': 'Health',
-  'Transfer':         'Income',
-  'Payment':          'Income',
+  'Transfer':         'Transfer',
+  'Payment':          'CC Payment',
 };
 
 // Categories that are NOT personal expenses (excluded from spending totals)
-export const NON_EXPENSE_CATEGORIES = new Set(['Investments', 'Income']);
+export const NON_EXPENSE_CATEGORIES = new Set(['Investments', 'Income', 'CC Payment', 'Transfer']);
 
 export function categorize(description: string, bankCategory?: string): string {
   // Prefer bank-provided category if mapped

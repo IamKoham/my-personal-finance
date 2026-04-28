@@ -2,6 +2,8 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { CATEGORY_COLORS } from '../../lib/constants';
 import { currency } from '../../lib/formatters';
 
+const EXCLUDED = new Set(['Investments', 'Income', 'CC Payment', 'Transfer']);
+
 interface Props {
   data: Record<string, number>;
   onSelect?: (cat: string) => void;
@@ -9,26 +11,41 @@ interface Props {
 
 export function CategoryDonut({ data, onSelect }: Props) {
   const entries = Object.entries(data)
-    .filter(([, v]) => v > 0)
+    .filter(([cat, v]) => v > 0 && !EXCLUDED.has(cat))
     .sort(([, a], [, b]) => b - a);
 
-  const chartData = entries.map(([name, value]) => ({ name, value }));
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+
+  // Merge slices < 2% into "Other"
+  const main: { name: string; value: number }[] = [];
+  let otherSum = 0;
+  for (const [name, value] of entries) {
+    if (total > 0 && value / total < 0.02) {
+      otherSum += value;
+    } else {
+      main.push({ name, value });
+    }
+  }
+  if (otherSum > 0) main.push({ name: 'Other', value: otherSum });
+
+  if (main.length === 0) {
+    return <div className="flex items-center justify-center h-44 text-sm text-gray-500">No expense data</div>;
+  }
 
   return (
     <div className="flex flex-col items-center gap-3">
       <ResponsiveContainer width="100%" height={180}>
         <PieChart>
           <Pie
-            data={chartData}
+            data={main}
             cx="50%"
             cy="50%"
             innerRadius={50}
             outerRadius={80}
-            paddingAngle={2}
             dataKey="value"
             onClick={(e) => onSelect?.(e.name)}
           >
-            {chartData.map((entry) => (
+            {main.map((entry) => (
               <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] || '#6b7280'} />
             ))}
           </Pie>
@@ -39,7 +56,7 @@ export function CategoryDonut({ data, onSelect }: Props) {
         </PieChart>
       </ResponsiveContainer>
       <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center">
-        {chartData.slice(0, 8).map(e => (
+        {main.map(e => (
           <div key={e.name} className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer hover:text-white" onClick={() => onSelect?.(e.name)}>
             <span className="w-2 h-2 rounded-full" style={{ background: CATEGORY_COLORS[e.name] || '#6b7280' }} />
             {e.name}

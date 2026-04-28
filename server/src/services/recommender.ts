@@ -10,30 +10,49 @@ export async function getRecommendations(db: Database): Promise<Recommendation[]
   for (const r of settingRows) s[r.key as string] = r.value as string;
 
   const targetMonths = parseFloat(s['emergency_fund_months'] || '3');
-  const monthlyIncome = parseFloat(s['monthly_income_estimate'] || '0');
-  const target = targetMonths * monthlyIncome;
 
-  const efRow = dbGet(db, "SELECT COALESCE(SUM(balance),0) as total FROM accounts WHERE type='savings'");
-  const efCurrent = Number(efRow?.total || 0);
+  // Avg monthly expenses from last 3 months (same logic as emergencyFund route)
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const start = threeMonthsAgo.toISOString().slice(0, 10);
+
+  const expRow3mo = dbGet(db,
+    `SELECT COALESCE(SUM(amount),0) as total FROM transactions
+     WHERE type='debit' AND category NOT IN ('Investments','Income','CC Payment','Transfer')
+     AND account_type NOT IN ('investment') AND date >= ?`,
+    [start]
+  );
+  const avgMonthlyExpenses = Number(expRow3mo?.total || 0) / 3;
+  const monthlyBase = avgMonthlyExpenses > 0
+    ? avgMonthlyExpenses
+    : parseFloat(s['monthly_income_estimate'] || '0');
+  const target = targetMonths * monthlyBase;
+
+  // Liquid cash = checking + savings minus goal allocations
+  const efRow = dbGet(db, "SELECT COALESCE(SUM(balance),0) as total FROM accounts WHERE type IN ('savings','checking')");
+  const goalsRow = dbGet(db, "SELECT COALESCE(SUM(current_amount),0) as total FROM goals");
+  const efCurrent = Math.max(0, Number(efRow?.total || 0) - Number(goalsRow?.total || 0));
   const efPercent = target > 0 ? (efCurrent / target) * 100 : 0;
 
   if (efPercent < 50) {
-    recs.push({ id: 'R2', severity: 'critical', title: 'Emergency fund critically low', detail: `${efPercent.toFixed(0)}% funded. Target: ${targetMonths} months.`, action: 'Increase savings.' });
+    recs.push({ id: 'R2', severity: 'critical', title: 'Emergency fund critically low', detail: `${efPercent.toFixed(0)}% funded. Target: ${targetMonths} months expenses.`, action: 'Increase savings.' });
   } else if (efPercent < 100) {
-    recs.push({ id: 'R1', severity: 'critical', title: 'Build emergency fund first', detail: `${efPercent.toFixed(0)}% funded. Need $${(target - efCurrent).toFixed(2)} more.`, action: 'Save before investing.' });
+    recs.push({ id: 'R1', severity: 'critical', title: 'Build emergency fund first', detail: `${efPercent.toFixed(0)}% funded. Need $${(target - efCurrent).toFixed(0)} more.`, action: 'Save before investing.' });
   }
 
-  if (monthlyIncome > 0) {
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const start = threeMonthsAgo.toISOString().slice(0, 10);
+  // Savings rate from actual transactions
+  const incRow = dbGet(db, "SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='credit' AND category='Income' AND date >= ?", [start]);
+  const expRow = dbGet(db,
+    `SELECT COALESCE(SUM(amount),0) as total FROM transactions
+     WHERE type='debit' AND category NOT IN ('Investments','Income','CC Payment','Transfer')
+     AND account_type NOT IN ('investment') AND date >= ?`,
+    [start]
+  );
+  const income = Number(incRow?.total || 0);
+  const expenses = Number(expRow?.total || 0);
+  const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
 
-    const incRow = dbGet(db, "SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='credit' AND category='Income' AND date >= ?", [start]);
-    const expRow = dbGet(db, "SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='debit' AND category NOT IN ('Investments','Income') AND date >= ?", [start]);
-    const income = Number(incRow?.total || 0);
-    const expenses = Number(expRow?.total || 0);
-    const savingsRate = income > 0 ? ((income - expenses) / income) * 100 : 0;
-
+  if (income > 0) {
     if (savingsRate < 10) {
       recs.push({ id: 'R3', severity: 'warning', title: `Savings rate ${savingsRate.toFixed(0)}% — low`, detail: 'Aim for at least 20%.', action: 'Review spending.' });
     } else if (savingsRate >= 20) {
