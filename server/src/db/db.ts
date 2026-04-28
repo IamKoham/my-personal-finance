@@ -26,9 +26,6 @@ export function saveDb(db: Database): void {
   fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
 
-// Synchronous-style helpers that match the better-sqlite3 API shape
-// so the rest of the code needs minimal changes.
-
 export type Row = Record<string, any>;
 
 export interface StmtResult {
@@ -36,6 +33,7 @@ export interface StmtResult {
   changes: number;
 }
 
+// Runs SQL and saves to disk — use for single important writes
 export function dbRun(db: Database, sql: string, params: any[] = []): StmtResult {
   db.run(sql, params);
   const meta = db.exec('SELECT last_insert_rowid() as id, changes() as ch');
@@ -46,6 +44,17 @@ export function dbRun(db: Database, sql: string, params: any[] = []): StmtResult
   };
   saveDb(db);
   return result;
+}
+
+// Runs SQL in-memory only — use inside bulk loops, call saveDb() once after
+export function dbRunNoSave(db: Database, sql: string, params: any[] = []): StmtResult {
+  db.run(sql, params);
+  const meta = db.exec('SELECT last_insert_rowid() as id, changes() as ch');
+  const row = meta[0]?.values[0];
+  return {
+    lastInsertRowid: row ? Number(row[0]) : 0,
+    changes: row ? Number(row[1]) : 0,
+  };
 }
 
 export function dbAll(db: Database, sql: string, params: any[] = []): Row[] {
