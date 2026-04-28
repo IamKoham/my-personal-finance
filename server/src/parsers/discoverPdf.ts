@@ -26,12 +26,10 @@ export function parseDiscoverPdf(text: string): {
   let ficoScore: number | null = null;
   const results: ParsedTransaction[] = [];
 
-  // Pass 1: extract account meta
+  // Pass 1: extract account meta (iterate all lines; last match wins for newBalance)
   for (const line of lines) {
-    if (!newBalance) {
-      const m = line.match(/new\s*balance[:\s]*([\d,]+\.\d{2})/i);
-      if (m) newBalance = parseFloat(m[1].replace(/,/g, ''));
-    }
+    const m = line.match(/new\s*balance[:\s]*\$?([\d,]+\.\d{2})/i);
+    if (m) newBalance = parseFloat(m[1].replace(/,/g, ''));
     if (!creditLimit) {
       const m = line.match(/credit\s+line\s+([\d,]+)/i);
       if (m) creditLimit = parseFloat(m[1].replace(/,/g, ''));
@@ -71,7 +69,9 @@ export function parseDiscoverPdf(text: string): {
       const desc = payMatch[2].trim();
       const amount = parseFloat(payMatch[3].replace(/,/g, ''));
       if (date && !isNaN(amount) && amount > 0) {
-        results.push({ date, description: desc, amount, type: 'credit' });
+        // Cashback credits are Income; payments to the card are CC Payment
+        const isCashback = /cashback|statement credit|reward/i.test(desc);
+        results.push({ date, description: desc, amount, type: 'credit', category: isCashback ? 'Income' : 'CC Payment' } as any);
       }
       continue;
     }
