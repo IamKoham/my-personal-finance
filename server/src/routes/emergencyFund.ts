@@ -33,7 +33,7 @@ router.get('/', (req, res) => {
   const target = targetMonths * monthlyExpenseBase;
 
   // Current = sum of all savings account balances (liquid cash only)
-  const savRow = dbGet(db, "SELECT COALESCE(SUM(balance),0) as total FROM accounts WHERE type='savings'") as { total: number };
+  const savRow = dbGet(db, "SELECT COALESCE(SUM(balance),0) as total FROM accounts WHERE type IN ('savings','checking')") as { total: number };
   const current = Number(savRow?.total || 0);
 
   const monthsCovered = monthlyExpenseBase > 0 ? current / monthlyExpenseBase : 0;

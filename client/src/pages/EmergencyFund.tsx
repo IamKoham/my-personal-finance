@@ -65,7 +65,7 @@ export function EmergencyFund() {
         {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Stat
-            label="Saved (Savings Accounts)"
+            label="Liquid Cash (Checking + Savings)"
             value={currency(data.current)}
           />
           <Stat
