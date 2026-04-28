@@ -8,12 +8,21 @@ export interface RobinhoodPortfolio {
   transactions: ParsedTransaction[];
 }
 
-/**
- * Robinhood monthly PDF statement
- * Page 1: Account Summary (Net Account Balance, Total Securities, Portfolio Value)
- * Page 2: Portfolio Summary (holdings table)
- * Page 3: Account Activity (buy/sell transactions)
- */
+// Actual pdf-parse format (verified from real statement):
+// Account summary lines: label on one line, "$open$close" on next line
+//   "Portfolio Value" → "$2,920.38$5,415.95"  (take second = closing)
+//   "Net Account Balance" → "$849.49$2,349.49"  (take second = closing cash)
+//
+// Holdings header: "Securities Held in AccountSym/CusipAcct TypeQtyPriceMkt ValueEst. Dividend Yield% of Total Portfolio"
+// Holdings: name on one line, "Estimated Yield: X%" on next, data line concatenated:
+//   "NFLXMargin31.621411$96.15000$3,040.40$0.0056.14%"
+//   Format: SYMBOL + "Margin" + qty + $price + $mktval + $dividend(2dp) + pct%
+//
+// Activity header: "DescriptionSymbolAcct TypeTransactionDateQtyPriceDebitCredit"
+// Buy/Sell: name, CUSIP, type lines then data:
+//   "NFLXMarginBuy03/02/20262.57918$96.93000$250.00"
+// ACH: "ACH DepositMarginACH03/24/2026$2,500.00"
+
 export function parseRobinhoodPdf(text: string): RobinhoodPortfolio {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
@@ -23,67 +32,90 @@ export function parseRobinhoodPdf(text: string): RobinhoodPortfolio {
   const holdings: RobinhoodPortfolio['holdings'] = [];
   const transactions: ParsedTransaction[] = [];
 
-  // --- Account Summary ---
-  for (let i = 0; i < lines.length; i++) {
+  // --- Account Summary: label on line N, "$X$Y" on line N+1 ---
+  for (let i = 0; i < lines.length - 1; i++) {
     const line = lines[i];
-    const next = lines[i + 1] || '';
+    const next = lines[i + 1];
 
-    if (/portfolio\s+value/i.test(line)) {
-      const vals = extractDollarPair(line + ' ' + next);
-      if (vals.length >= 2) portfolioValue = vals[1]; // closing balance
+    if (/^Portfolio Value$/i.test(line)) {
+      const vals = extractDollarValues(next);
+      if (vals.length >= 2) portfolioValue = vals[1];
       else if (vals.length === 1) portfolioValue = vals[0];
     }
-    if (/total\s+securities/i.test(line)) {
-      const vals = extractDollarPair(line + ' ' + next);
-      if (vals.length >= 2) securitiesValue = vals[1];
+    if (/^Net Account Balance$/i.test(line)) {
+      const vals = extractDollarValues(next);
+      if (vals.length >= 2) cashBalance = vals[1];
+      else if (vals.length === 1) cashBalance = vals[0];
     }
-    if (/brokerage\s+cash\s+balance/i.test(line)) {
-      const m = (line + ' ' + next).match(/\$([\d,]+\.\d{2})/);
+    if (/^Total Securities$/i.test(line)) {
+      const vals = extractDollarValues(next);
+      if (vals.length >= 2) securitiesValue = vals[1];
+      else if (vals.length === 1) securitiesValue = vals[0];
+    }
+    // Also catch inline format: "Brokerage Cash Balance$2,349.4943.38%"
+    if (/^Brokerage Cash Balance/i.test(line)) {
+      const m = line.match(/Brokerage Cash Balance\$([\d,]+\.\d{2})/);
       if (m) cashBalance = parseFloat(m[1].replace(/,/g, ''));
     }
   }
 
   // --- Holdings ---
-  // Lines like: "Netflix NFLX Margin 31.621411 $96.15000 $3,040.40 $0.00 56.14%"
+  // Data line: SYMBOL + Margin + qty + $price + $mktval + $0.00(dividend, exactly 2dp) + pct%
+  // e.g. "NFLXMargin31.621411$96.15000$3,040.40$0.0056.14%"
+  const holdingRegex = /^([A-Z]{1,6})Margin([\d.]+)\$([\d,.]+)\$([\d,.]+)\$(\d+\.\d{2})([\d.]+)%/;
+  let pendingName = '';
+
   for (const line of lines) {
-    const hMatch = line.match(/^(\w+)\s+(\w+)\s+\w+\s+([\d.]+)\s+\$([\d,.]+)\s+\$([\d,.]+)\s+\$[\d,.]+\s+([\d.]+)%/);
-    if (hMatch) {
+    if (holdingRegex.test(line)) {
+      const m = line.match(holdingRegex)!;
       holdings.push({
-        name: hMatch[1],
-        symbol: hMatch[2],
-        qty: parseFloat(hMatch[3]),
-        price: parseFloat(hMatch[4].replace(/,/g, '')),
-        marketValue: parseFloat(hMatch[5].replace(/,/g, '')),
-        pctOfPortfolio: parseFloat(hMatch[6]),
+        name: pendingName || m[1],
+        symbol: m[1],
+        qty: parseFloat(m[2]),
+        price: parseFloat(m[3].replace(/,/g, '')),
+        marketValue: parseFloat(m[4].replace(/,/g, '')),
+        pctOfPortfolio: parseFloat(m[6]),
       });
+      pendingName = '';
+    } else if (/^[A-Z][a-z]/.test(line) && !/^(Page|Robinhood|Estimated|CUSIP|Securities|Brokerage|Total|Account|Portfolio|Income|This|The|If|Short|Interest|Opening|Closing|Margin)/i.test(line)) {
+      // Likely a stock name (starts with capital, not a known header)
+      pendingName = line;
+    } else {
+      // Reset pending name on non-name lines (yield lines, etc.)
+      if (!/^Estimated Yield/i.test(line)) pendingName = '';
     }
   }
 
   // --- Transactions ---
-  // Lines like: "Netflix CUSIP: 64110L106 NFLX Margin Buy 03/02/2026 2.57918 $96.93000 $250.00"
+  // Buy/Sell: "NFLXMarginBuy03/02/20262.57918$96.93000$250.00"
+  const buyRegex = /^([A-Z]{1,6})Margin(Buy|Sell)(\d{2}\/\d{2}\/\d{4})([\d.]+)\$([\d.]+)\$([\d,.]+)$/i;
+  // ACH: "ACH DepositMarginACH03/24/2026$2,500.00"
+  const achRegex = /^ACH DepositMarginACH(\d{2}\/\d{2}\/\d{4})\$([\d,.]+)$/i;
+
   for (const line of lines) {
-    const txMatch = line.match(/(\w+)\s+Margin\s+(Buy|Sell|ACH)\s+(\d{2}\/\d{2}\/\d{4})\s+[\d.]+\s+\$[\d,.]+\s+\$([\d,.]+)/i);
-    if (txMatch) {
-      const symbol = txMatch[1];
-      const action = txMatch[2].toLowerCase();
-      const date = parseMDY(txMatch[3]);
-      const amount = parseFloat(txMatch[4].replace(/,/g, ''));
-      if (!date || isNaN(amount)) continue;
-      transactions.push({
-        date,
-        description: `${action === 'buy' ? 'Buy' : 'Sell'} ${symbol}`,
-        amount,
-        type: action === 'sell' ? 'credit' : 'debit',
-      });
+    const buy = line.match(buyRegex);
+    if (buy) {
+      const date = parseMDY(buy[3]);
+      const amount = parseFloat(buy[6].replace(/,/g, ''));
+      if (date && !isNaN(amount)) {
+        const action = buy[2].toLowerCase();
+        transactions.push({
+          date,
+          description: `${action === 'buy' ? 'Buy' : 'Sell'} ${buy[1]}`,
+          amount,
+          type: action === 'sell' ? 'credit' : 'debit',
+          category: 'Investments',
+        });
+      }
+      continue;
     }
 
-    // ACH Deposit
-    const achMatch = line.match(/ACH\s+Deposit\s+\w+\s+ACH\s+(\d{2}\/\d{2}\/\d{4})\s+\$([\d,.]+)/i);
-    if (achMatch) {
-      const date = parseMDY(achMatch[1]);
-      const amount = parseFloat(achMatch[2].replace(/,/g, ''));
+    const ach = line.match(achRegex);
+    if (ach) {
+      const date = parseMDY(ach[1]);
+      const amount = parseFloat(ach[2].replace(/,/g, ''));
       if (date && !isNaN(amount)) {
-        transactions.push({ date, description: 'ACH Deposit', amount, type: 'credit' });
+        transactions.push({ date, description: 'ACH Deposit', amount, type: 'credit', category: 'Income' });
       }
     }
   }
@@ -91,9 +123,8 @@ export function parseRobinhoodPdf(text: string): RobinhoodPortfolio {
   return { portfolioValue, cashBalance, securitiesValue, holdings, transactions };
 }
 
-function extractDollarPair(text: string): number[] {
-  const matches = [...text.matchAll(/\$([\d,]+\.\d{2})/g)];
-  return matches.map(m => parseFloat(m[1].replace(/,/g, '')));
+function extractDollarValues(text: string): number[] {
+  return [...text.matchAll(/\$([\d,]+\.\d{2})/g)].map(m => parseFloat(m[1].replace(/,/g, '')));
 }
 
 function parseMDY(s: string): string | null {

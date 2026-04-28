@@ -1,11 +1,12 @@
 import { ParsedTransaction } from '../../../shared/types';
 
-// Actual pdf-parse format (from diagnostic run):
-// Section header "PURCHASES" on its own line (line ~343 in 418-line doc)
-// Transaction: "03/03     UBER   *TRIP HELP.UBER.COM CA18.89"  (MM/DD + spaces + merchant + amount, NO $ prefix)
-// Payment:     "03/26     AUTOMATIC PAYMENT - THANK YOU-40.00" (negative amount, no $)
-// "PAYMENTS AND OTHER CREDITS" section header
-// Balance line: "New Balance $X,XXX.XX" or "New Balance$X,XXX.XX"
+// Actual pdf-parse format (verified from real statement):
+// Section header "PURCHASES" on its own line (line ~343)
+// Transaction lines: "03/03     UBER   *TRIP HELP.UBER.COM CA18.89"  (amount appended to last word, NO space, NO $)
+// Payment lines:     "03/26     AUTOMATIC PAYMENT - THANK YOU-40.00" (negative, appended to last word)
+// Interest lines:    "04/01     PURCHASE INTEREST CHARGE18.93"        (skip these)
+// Payments section:  "PAYMENTS AND OTHER CREDITS" (line ~397)
+// Balance lines:     "Payment, Credits-$40.00", "Purchases+$1,074.56"
 
 export function parseChaseSapphirePdf(text: string): {
   transactions: ParsedTransaction[];
@@ -16,55 +17,46 @@ export function parseChaseSapphirePdf(text: string): {
   let newBalance: number | null = null;
   const results: ParsedTransaction[] = [];
 
-  // Extract New Balance
+  // Extract balance from summary line: "Credit Access Line$24,500" and "Available Credit$22,796"
+  // New balance = credit access - available credit
+  let creditLine: number | null = null;
+  let availableCredit: number | null = null;
+
   for (const line of lines) {
-    const m = line.match(/new\s*balance[:\s$]*([\d,]+\.?\d*)/i);
-    if (m) { newBalance = parseFloat(m[1].replace(/,/g, '')); break; }
+    const clMatch = line.match(/^Credit Access Line\$([\d,]+)/i);
+    if (clMatch) creditLine = parseFloat(clMatch[1].replace(/,/g, ''));
+    const acMatch = line.match(/^Available Credit\$([\d,]+)/i);
+    if (acMatch) availableCredit = parseFloat(acMatch[1].replace(/,/g, ''));
+    // Also try explicit "New Balance" pattern
+    const nbMatch = line.match(/new\s*balance[:\s$]*([\d,]+\.?\d*)/i);
+    if (nbMatch) newBalance = parseFloat(nbMatch[1].replace(/,/g, ''));
+  }
+  // Derive balance from credit line - available
+  if (newBalance === null && creditLine !== null && availableCredit !== null) {
+    newBalance = creditLine - availableCredit;
   }
 
-  // Section parsing
-  let section: 'none' | 'payments' | 'purchases' = 'none';
+  // Parse transactions — no section tracking, use amount sign
+  // Pattern: MM/DD + spaces + description + amount (amount may be negative, NO $ prefix, appended to last word)
+  const txRegex = /^(\d{2}\/\d{2})\s+(.+?)(-?[\d,]+\.\d{2})$/;
 
   for (const line of lines) {
-    // Section headers
-    if (/^payments\s+and\s+other\s+credits$/i.test(line) || /^payments$/i.test(line)) {
-      section = 'payments';
-      continue;
-    }
-    if (/^purchases$/i.test(line)) {
-      section = 'purchases';
-      continue;
-    }
-    if (/^interest\s+charged|^fees\s+charged|^account\s+summary/i.test(line)) {
-      section = 'none';
-      continue;
-    }
+    const m = line.match(txRegex);
+    if (!m) continue;
 
-    if (section === 'none') continue;
+    const date = parseMD(m[1]);
+    const desc = m[2].trim();
+    const rawAmount = parseFloat(m[3].replace(/,/g, ''));
+    if (!date || isNaN(rawAmount) || rawAmount === 0) continue;
 
-    // Transaction format: MM/DD   MERCHANT NAME...   amount
-    // amount may be negative (payments), no $ prefix
-    // e.g. "03/03     UBER   *TRIP HELP.UBER.COM CA18.89"
-    // e.g. "03/26     AUTOMATIC PAYMENT - THANK YOU-40.00"
-    const txMatch = line.match(/^(\d{2}\/\d{2})\s+(.+?)\s+(-?[\d,]+\.\d{2})$/);
-    if (!txMatch) continue;
-
-    const date = parseMD(txMatch[1]);
-    const desc = txMatch[2].trim();
-    const rawAmount = parseFloat(txMatch[3].replace(/,/g, ''));
-    if (!date || isNaN(rawAmount)) continue;
+    // Skip interest charges
+    if (/interest charge|interest charged/i.test(desc)) continue;
 
     const amount = Math.abs(rawAmount);
-    if (amount === 0) continue;
+    // Negative amount = payment/credit
+    const isCredit = rawAmount < 0 || /automatic payment|payment - thank you/i.test(desc);
 
-    // Negative amount = payment/credit; positive = debit
-    const isPayment = rawAmount < 0 || /payment|credit|refund|return/i.test(desc);
-    const type = isPayment ? 'credit' : 'debit';
-
-    // Section overrides description-based detection
-    const finalType = section === 'payments' ? 'credit' : (section === 'purchases' ? 'debit' : type);
-
-    results.push({ date, description: desc, amount, type: finalType });
+    results.push({ date, description: desc, amount, type: isCredit ? 'credit' : 'debit' });
   }
 
   return { transactions: results, endingBalance: newBalance };
@@ -75,6 +67,6 @@ function parseMD(s: string): string | null {
   if (!m) return null;
   const now = new Date();
   const month = parseInt(m[1]);
-  const year = month > now.getMonth() + 1 + 1 ? now.getFullYear() - 1 : now.getFullYear();
+  const year = month > now.getMonth() + 2 ? now.getFullYear() - 1 : now.getFullYear();
   return `${year}-${m[1]}-${m[2]}`;
 }

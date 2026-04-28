@@ -212,11 +212,24 @@ function toNum(val: any): number {
   return isNaN(n) ? 0 : n;
 }
 
+const MONTH_MAP: Record<string, string> = {
+  JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06',
+  JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12',
+};
+
 function excelDateToISO(val: any): string | null {
   if (!val) return null;
   const s = String(val).trim();
-  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  // DD-MMM-YYYY (e.g. "15-JUN-2025") — Etrade's actual format
+  let m = s.match(/^(\d{1,2})-([A-Z]{3})-(\d{4})$/i);
+  if (m) {
+    const month = MONTH_MAP[m[2].toUpperCase()];
+    if (month) return `${m[3]}-${month}-${m[1].padStart(2, '0')}`;
+  }
+  // MM/DD/YYYY
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  // YYYY-MM-DD
   m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) return s;
   // Excel serial date
