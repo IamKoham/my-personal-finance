@@ -28,7 +28,7 @@ export async function getRecommendations(db: Database): Promise<Recommendation[]
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const start = threeMonthsAgo.toISOString().slice(0, 10);
 
-    const incRow = dbGet(db, "SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='credit' AND date >= ?", [start]);
+    const incRow = dbGet(db, "SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='credit' AND category='Income' AND date >= ?", [start]);
     const expRow = dbGet(db, "SELECT COALESCE(SUM(amount),0) as total FROM transactions WHERE type='debit' AND category NOT IN ('Investments','Income') AND date >= ?", [start]);
     const income = Number(incRow?.total || 0);
     const expenses = Number(expRow?.total || 0);

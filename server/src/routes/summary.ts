@@ -14,7 +14,8 @@ router.get('/', (req, res) => {
   const rows = dbAll(db, `
     SELECT
       strftime('%Y-%m', date) as month,
-      SUM(CASE WHEN type='credit' THEN amount ELSE 0 END) as income,
+      SUM(CASE WHEN type='credit' AND category='Income' THEN amount ELSE 0 END) as income,
+      SUM(CASE WHEN type='credit' THEN amount ELSE 0 END) as total_credits,
       SUM(CASE WHEN type='debit' AND category NOT IN ('Investments','Income') THEN amount ELSE 0 END) as expenses,
       category
     FROM transactions
