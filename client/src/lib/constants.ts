@@ -1,12 +1,12 @@
 export const CATEGORIES = [
-  'Groceries', 'Dining', 'Transport', 'Subscriptions',
+  'Groceries', 'Restaurants', 'Transport', 'Subscriptions',
   'Utilities', 'Rent', 'Health', 'Shopping',
   'Travel', 'Income', 'Gasoline', 'Other',
 ] as const;
 
 export const CATEGORY_COLORS: Record<string, string> = {
   Groceries:     '#22c55e',
-  Dining:        '#f97316',
+  Restaurants:        '#f97316',
   Transport:     '#3b82f6',
   Subscriptions: '#a855f7',
   Utilities:     '#06b6d4',
