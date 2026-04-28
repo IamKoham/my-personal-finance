@@ -31,8 +31,8 @@ export async function getRecommendations(db: Database): Promise<Recommendation[]
   // Liquid cash = checking + savings minus what's already saved toward goals
   const efRow = dbGet(db, "SELECT COALESCE(SUM(balance),0) as total FROM accounts WHERE type IN ('savings','checking')");
   const liquidCash = Number(efRow?.total || 0);
-  const goals = dbAll(db, 'SELECT current_amount, target_amount FROM goals') as { current_amount: number; target_amount: number }[];
-  const savedForGoals = goals.reduce((s, g) => s + Math.min(Number(g.current_amount), Number(g.target_amount)), 0);
+  const goalAmounts = dbAll(db, 'SELECT current_amount, target_amount FROM goals') as { current_amount: number; target_amount: number }[];
+  const savedForGoals = goalAmounts.reduce((s, g) => s + Math.min(Number(g.current_amount), Number(g.target_amount)), 0);
   const efCurrent = Math.max(0, liquidCash - savedForGoals);
   const efPercent = target > 0 ? (efCurrent / target) * 100 : 0;
 
