@@ -76,7 +76,9 @@ export function Investments() {
                 <div key={h.id} className="flex items-center justify-between py-1.5 border-b border-gray-800 last:border-0">
                   <div>
                     <p className="text-sm font-medium text-white">{h.symbol}</p>
-                    <p className="text-xs text-gray-500">{h.name} · {h.qty} shares @ {currency(h.price)}</p>
+                    <p className="text-xs text-gray-500">
+                      {h.symbol === 'CASH' ? h.name : `${h.name} · ${Number(h.qty).toFixed(h.qty < 1 ? 6 : 2)} shares @ ${currency(h.price)}`}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-white">{currency(h.market_value)}</p>
