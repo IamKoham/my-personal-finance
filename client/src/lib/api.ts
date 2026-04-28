@@ -17,6 +17,8 @@ export const api = {
     const q = params ? "?" + new URLSearchParams(params).toString() : "";
     return request<any[]>(`/transactions${q}`);
   },
+  updateTransactionCategory: (id: number, category: string) =>
+    request<any>(`/transactions/${id}`, { method: "PATCH", body: JSON.stringify({ category }) }),
   getSummary: (params?: { start?: string; end?: string }) => {
     const q = params ? "?" + new URLSearchParams(params as any).toString() : "";
     return request<any[]>(`/summary${q}`);

@@ -47,6 +47,11 @@ export function Spending() {
   const totalIncome   = incomeCredits.reduce((s, c) => s + c.amount, 0);
   const totalOther    = otherCredits.reduce((s, c) => s + c.amount, 0);
 
+  async function markAsIncome(id: number) {
+    await api.updateTransactionCategory(id, 'Income');
+    setCredits(prev => prev.map(c => c.id === id ? { ...c, category: 'Income' } : c));
+  }
+
   if (loading) return <div className="p-6 text-gray-400">Loading…</div>;
 
   return (
@@ -170,7 +175,7 @@ export function Spending() {
                 <p className="px-4 py-6 text-center text-sm text-gray-500">All credits are counted as income.</p>
               )}
               {otherCredits.map(t => (
-                <CreditRow key={t.id} t={t} counted={false} />
+                <CreditRow key={t.id} t={t} counted={false} onMarkIncome={() => markAsIncome(t.id)} />
               ))}
             </div>
           </div>
@@ -205,9 +210,18 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-function CreditRow({ t, counted }: { t: any; counted: boolean }) {
+function CreditRow({ t, counted, onMarkIncome }: { t: any; counted: boolean; onMarkIncome?: () => void }) {
+  const [saving, setSaving] = useState(false);
+
+  async function handleMark() {
+    if (!onMarkIncome) return;
+    setSaving(true);
+    await onMarkIncome();
+    setSaving(false);
+  }
+
   return (
-    <div className="px-4 py-3 flex items-center justify-between">
+    <div className="px-4 py-3 flex items-center gap-3">
       <div className="min-w-0 flex-1">
         <p className="text-sm text-gray-200 truncate">{t.description}</p>
         <p className="text-xs text-gray-500 mt-0.5">
@@ -222,9 +236,20 @@ function CreditRow({ t, counted }: { t: any; counted: boolean }) {
           )}
         </p>
       </div>
-      <span className={`text-sm font-medium ml-4 flex-shrink-0 ${counted ? 'text-emerald-400' : 'text-yellow-400'}`}>
-        +{currency(t.amount)}
-      </span>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        {!counted && onMarkIncome && (
+          <button
+            onClick={handleMark}
+            disabled={saving}
+            className="text-xs px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+          >
+            {saving ? '…' : '+ Count as Income'}
+          </button>
+        )}
+        <span className={`text-sm font-medium ${counted ? 'text-emerald-400' : 'text-yellow-400'}`}>
+          +{currency(t.amount)}
+        </span>
+      </div>
     </div>
   );
 }

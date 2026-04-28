@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { dbAll } from '../db/db';
+import { dbAll, dbRun } from '../db/db';
 
 const router = Router();
 
@@ -17,6 +17,14 @@ router.get('/', (req, res) => {
 
   sql += ' ORDER BY date DESC';
   res.json(dbAll(db, sql, params));
+});
+
+router.patch('/:id', (req, res) => {
+  const db = req.app.locals.db;
+  const { category } = req.body;
+  if (!category) return res.status(400).json({ error: 'category required' });
+  dbRun(db, 'UPDATE transactions SET category = ? WHERE id = ?', [category, req.params.id]);
+  res.json({ ok: true });
 });
 
 export default router;
