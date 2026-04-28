@@ -39,9 +39,13 @@ router.get("/espp", (req, res) => {
 router.get("/rsu", (req, res) => {
   const db = req.app.locals.db;
   const grants = dbAll(db, "SELECT * FROM rsu_grants ORDER BY vest_date ASC");
-  const totalVestedValue = grants.reduce((s: number, g: any) => s + Number(g.market_value), 0);
-  const totalUnvested = grants.reduce((s: number, g: any) => s + Number(g.unvested_qty), 0);
-  res.json({ grants, totalVestedValue, totalUnvested });
+  const totalVestedValue = grants.reduce((s: number, g: any) => {
+    const grantedQty = Number(g.granted_qty) || 1;
+    return s + Number(g.market_value) * Number(g.vested_qty) / grantedQty;
+  }, 0);
+  const totalGrantValue = grants.reduce((s: number, g: any) => s + Number(g.market_value), 0);
+  const totalUnvestedQty = grants.reduce((s: number, g: any) => s + Number(g.unvested_qty), 0);
+  res.json({ grants, totalVestedValue, totalGrantValue, totalUnvestedQty });
 });
 
 router.get("/summary", (req, res) => {
@@ -51,7 +55,11 @@ router.get("/summary", (req, res) => {
   const fidelity = dbGet(db, "SELECT ending_balance, employee_contributions, employer_contributions FROM fidelity_snapshots ORDER BY id DESC LIMIT 1");
   const fidelityValue = fidelity ? Number(fidelity.ending_balance) : 0;
   const esppRow = dbGet(db, "SELECT COALESCE(SUM(market_value),0) as total FROM espp_lots");
-  const rsuRow = dbGet(db, "SELECT COALESCE(SUM(market_value),0) as total FROM rsu_grants");
+  // Only count vested RSU shares — prorate market_value by vested_qty/granted_qty
+  const rsuRow = dbGet(db, `
+    SELECT COALESCE(SUM(market_value * CAST(vested_qty AS REAL) / NULLIF(granted_qty, 0)), 0) as total
+    FROM rsu_grants
+  `);
   const esppValue = Number(esppRow?.total || 0);
   const rsuValue = Number(rsuRow?.total || 0);
   const total = robinhoodValue + fidelityValue + esppValue + rsuValue;
