@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { api } from '../lib/api';
-import { Upload, Trash2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Upload, Trash2, CheckCircle, XCircle, AlertCircle, Clock } from 'lucide-react';
 import { ACCOUNT_TYPES } from '../lib/constants';
 
 export function Uploads() {
@@ -19,7 +19,6 @@ export function Uploads() {
   };
   useEffect(() => { load(); }, []);
 
-  // When account selection changes, auto-set type from existing account
   const handleAccountSelect = (name: string) => {
     setAccountName(name);
     if (name !== '__other__') {
@@ -43,10 +42,13 @@ export function Uploads() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this upload and all its transactions?')) return;
+    if (!confirm('Remove this upload? Data will be deleted from the dashboard but the log entry will be kept.')) return;
     await api.deleteUpload(id);
     load();
   };
+
+  const active  = uploads.filter(u => !u.deleted_at);
+  const deleted = uploads.filter(u =>  u.deleted_at);
 
   return (
     <div className="p-6 space-y-6">
@@ -61,7 +63,6 @@ export function Uploads() {
             className="w-full bg-gray-800 rounded-lg px-3 py-2 text-sm text-gray-300 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-blue-600 file:text-white file:text-xs cursor-pointer"
           />
 
-          {/* Account name dropdown */}
           <select
             value={accountName}
             onChange={e => handleAccountSelect(e.target.value)}
@@ -74,7 +75,6 @@ export function Uploads() {
             <option value="__other__">+ Other (new account)</option>
           </select>
 
-          {/* Custom name input if "Other" selected */}
           {accountName === '__other__' && (
             <input
               placeholder="New account name (e.g. BofA Checking)"
@@ -84,7 +84,6 @@ export function Uploads() {
             />
           )}
 
-          {/* Account type — shown when adding new or if no type on existing */}
           {(accountName === '__other__' || !accounts.find(a => a.name === accountName)) && (
             <select
               value={accountType}
@@ -112,7 +111,7 @@ export function Uploads() {
               <><CheckCircle size={14} className="inline mr-1"/>
                 Detected: <strong>{result.bank}</strong> · {result.inserted} inserted · {result.duplicates} duplicates skipped
                 {result.ending_balance !== null && result.ending_balance !== undefined &&
-                  <> · Balance set to <strong>${Number(result.ending_balance).toFixed(2)}</strong></>
+                  <> · Balance: <strong>${Number(result.ending_balance).toFixed(2)}</strong></>
                 }
               </>
             )}
@@ -120,36 +119,58 @@ export function Uploads() {
         )}
       </div>
 
-      {/* Upload history */}
+      {/* Active uploads */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-800">
-          <h2 className="text-sm font-medium text-gray-400">Upload History</h2>
+        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-gray-400">Active Uploads</h2>
+          <span className="text-xs text-gray-600">{active.length} file{active.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="divide-y divide-gray-800">
-          {uploads.map(u => (
+          {active.map(u => (
             <div key={u.id} className="px-4 py-3 flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-200">{u.filename}</p>
-                <p className="text-xs text-gray-500">{u.account_name} · {String(u.upload_date).slice(0, 10)} · {u.transaction_count} transactions</p>
+                <p className="text-xs text-gray-500">
+                  {u.account_name} · {String(u.upload_date).slice(0, 10)} · {u.transaction_count} transactions
+                </p>
               </div>
               <div className="flex items-center gap-3">
-                {u.status === 'success'
-                  ? <CheckCircle size={14} className="text-green-400"/>
-                  : u.status === 'failed'
-                  ? <XCircle size={14} className="text-red-400"/>
-                  : <AlertCircle size={14} className="text-yellow-400"/>
-                }
-                <button onClick={() => handleDelete(u.id)} className="text-gray-500 hover:text-red-400">
+                <CheckCircle size={14} className="text-green-400"/>
+                <button onClick={() => handleDelete(u.id)} className="text-gray-500 hover:text-red-400 transition-colors" title="Remove upload">
                   <Trash2 size={14}/>
                 </button>
               </div>
             </div>
           ))}
-          {uploads.length === 0 && (
-            <p className="px-4 py-8 text-center text-gray-500 text-sm">No uploads yet.</p>
+          {active.length === 0 && (
+            <p className="px-4 py-8 text-center text-gray-500 text-sm">No active uploads. Upload a statement above.</p>
           )}
         </div>
       </div>
+
+      {/* Deleted uploads log */}
+      {deleted.length > 0 && (
+        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+            <h2 className="text-sm font-medium text-gray-500">Deleted Upload Log</h2>
+            <span className="text-xs text-gray-600">{deleted.length} record{deleted.length !== 1 ? 's' : ''} kept for audit</span>
+          </div>
+          <div className="divide-y divide-gray-800">
+            {deleted.map(u => (
+              <div key={u.id} className="px-4 py-3 flex items-center justify-between opacity-50">
+                <div>
+                  <p className="text-sm text-gray-400 line-through">{u.filename}</p>
+                  <p className="text-xs text-gray-600">
+                    {u.account_name} · uploaded {String(u.upload_date).slice(0, 10)} · {u.transaction_count} transactions
+                    · deleted {String(u.deleted_at).slice(0, 10)}
+                  </p>
+                </div>
+                <Clock size={14} className="text-gray-600 flex-shrink-0"/>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

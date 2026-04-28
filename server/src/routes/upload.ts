@@ -1,11 +1,11 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { parseStatement } from "../parsers";
 import { categorize } from "../services/categorizer";
 import { hashTransaction } from "../services/deduplicator";
-import { dbRun, dbRunNoSave, dbAll, dbGet, saveDb, dbExec } from "../db/db";
+import { dbRunNoSave, dbAll, dbGet, saveDb } from "../db/db";
 
 const UPLOADS_DIR = path.resolve(__dirname, "../../../uploads");
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -59,7 +59,7 @@ function persistMeta(db: any, bank: string, meta: any, accountName: string, uplo
        JSON.stringify(meta.funds || []), uploadId]);
   }
   if (bank === "etrade_xlsx") {
-    if (meta.esppLots && meta.esppLots.length) {
+    if (meta.esppLots?.length) {
       for (const lot of meta.esppLots) {
         dbRunNoSave(db, "INSERT INTO espp_lots (symbol, purchase_date, purchase_price, purchased_qty, net_shares, sellable_qty, market_value, expected_gain_loss, discount_pct, cost_basis_per_share, taxable_gain_per_share, tax_status, first_sellable_date, upload_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [lot.symbol, lot.purchaseDate, lot.purchasePrice, lot.purchasedQty, lot.netShares,
@@ -67,7 +67,7 @@ function persistMeta(db: any, bank: string, meta: any, accountName: string, uplo
            lot.costBasisPerShare, lot.taxableGainPerShare, lot.taxStatus, lot.firstSellableDate, uploadId]);
       }
     }
-    if (meta.rsuGrants && meta.rsuGrants.length) {
+    if (meta.rsuGrants?.length) {
       for (const g of meta.rsuGrants) {
         dbRunNoSave(db, "INSERT INTO rsu_grants (symbol, grant_date, granted_qty, vested_qty, unvested_qty, sellable_qty, market_value, vest_date, total_taxes_paid, effective_tax_rate, taxable_gain, cost_basis_per_share, upload_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [g.symbol, g.grantDate, g.grantedQty, g.vestedQty, g.unvestedQty, g.sellableQty,
@@ -78,7 +78,7 @@ function persistMeta(db: any, bank: string, meta: any, accountName: string, uplo
   }
   if (bank === "discover_pdf") {
     if (meta.creditLimit) dbRunNoSave(db, "UPDATE accounts SET credit_limit=?, updated_at=datetime('now') WHERE name=?", [meta.creditLimit, accountName]);
-    if (meta.ficoScore) dbRunNoSave(db, "UPDATE accounts SET fico_score=?, updated_at=datetime('now') WHERE name=?", [meta.ficoScore, accountName]);
+    if (meta.ficoScore)   dbRunNoSave(db, "UPDATE accounts SET fico_score=?, updated_at=datetime('now') WHERE name=?", [meta.ficoScore, accountName]);
   }
 }
 
@@ -92,20 +92,24 @@ router.post("/", upload.single("file"), async (req, res) => {
   const filename = req.file.originalname;
 
   let text: string;
-  try { text = await extractText(filePath, filename); }
-  catch (err: any) { return res.status(500).json({ error: `Failed to read file: ${err.message}` }); }
+  try {
+    text = await extractText(filePath, filename);
+  } catch (err: any) {
+    return res.status(500).json({ error: `Failed to read file: ${err.message}` });
+  }
 
   const { transactions, bank, endingBalance, error, sample, meta } = parseStatement(text, filename);
   if (error && transactions.length === 0) return res.status(422).json({ error, sample, bank });
 
+  // All DB writes below are in-memory; single saveDb() at the end
   const existingAccount = dbGet(db, "SELECT id FROM accounts WHERE name=?", [account_name]);
   if (existingAccount) {
-    if (endingBalance !== null) dbRun(db, "UPDATE accounts SET balance=?, updated_at=datetime('now') WHERE name=?", [endingBalance, account_name]);
+    if (endingBalance !== null) dbRunNoSave(db, "UPDATE accounts SET balance=?, updated_at=datetime('now') WHERE name=?", [endingBalance, account_name]);
   } else {
-    dbRun(db, "INSERT INTO accounts (name, type, balance) VALUES (?, ?, ?)", [account_name, account_type, endingBalance ?? 0]);
+    dbRunNoSave(db, "INSERT INTO accounts (name, type, balance) VALUES (?, ?, ?)", [account_name, account_type, endingBalance ?? 0]);
   }
 
-  const uploadResult = dbRun(db, "INSERT INTO uploads (filename, account_name, transaction_count, status) VALUES (?, ?, ?, ?)", [filename, account_name, 0, "pending"]);
+  const uploadResult = dbRunNoSave(db, "INSERT INTO uploads (filename, account_name, transaction_count, status) VALUES (?, ?, ?, ?)", [filename, account_name, 0, "pending"]);
   const uploadId = Number(uploadResult.lastInsertRowid);
 
   persistMeta(db, bank, meta, account_name, uploadId);
@@ -126,7 +130,7 @@ router.post("/", upload.single("file"), async (req, res) => {
   }
 
   dbRunNoSave(db, "UPDATE uploads SET transaction_count=?, status=? WHERE id=?", [inserted, "success", uploadId]);
-  saveDb(db); // single write for the entire upload
+  saveDb(db); // single disk write for the entire upload
 
   res.json({ ok: true, bank, parsed: transactions.length, inserted, duplicates: transactions.length - inserted, upload_id: uploadId, ending_balance: endingBalance });
 });

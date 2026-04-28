@@ -19,4 +19,5 @@ export function migrate(db: Database): void {
   };
   addColIfMissing('accounts', 'credit_limit', 'REAL DEFAULT 0');
   addColIfMissing('accounts', 'fico_score', 'INTEGER');
+  addColIfMissing('uploads', 'deleted_at', 'TEXT');
 }

@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS uploads (
   account_name TEXT NOT NULL,
   upload_date TEXT DEFAULT (datetime('now')),
   transaction_count INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'success'
+  status TEXT DEFAULT 'success',    -- 'success'|'partial'|'failed'|'deleted'
+  deleted_at TEXT                   -- NULL = active, set = soft-deleted
 );
 
 CREATE TABLE IF NOT EXISTS settings (
