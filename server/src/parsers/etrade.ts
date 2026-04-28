@@ -12,7 +12,7 @@ export interface EsppLot {
   discountPct: number;
   costBasisPerShare: number;
   taxableGainPerShare: number;
-  taxStatus: string; // 'Qualifying' | 'Disqualifying'
+  taxStatus: string;
   firstSellableDate: string | null;
 }
 
@@ -39,51 +39,63 @@ export interface EtradeData {
   transactions: ParsedTransaction[];
 }
 
-/**
- * Etrade ByBenefitType_expanded.xlsx
- * Two sheets: ESPP and Restricted Stock
- * Input: JSON.stringify({ __xlsx: true, sheets: { ESPP: [][], 'Restricted Stock': [][] } })
- */
 export function parseEtradeXlsx(text: string): EtradeData {
   const esppLots: EsppLot[] = [];
   const rsuGrants: RsuGrant[] = [];
   const transactions: ParsedTransaction[] = [];
 
   let parsed: any;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
+  try { parsed = JSON.parse(text); } catch {
     return { esppLots, rsuGrants, totalEsppValue: 0, totalRsuValue: 0, transactions };
   }
-
   if (!parsed.__xlsx) return { esppLots, rsuGrants, totalEsppValue: 0, totalRsuValue: 0, transactions };
 
   const sheets = parsed.sheets as Record<string, any[][]>;
+  const sheetNames = Object.keys(sheets);
+
+  // Find sheets by case-insensitive partial match
+  const esppSheetName = sheetNames.find(n => n.toLowerCase().includes('espp'));
+  const rsuSheetName  = sheetNames.find(n => n.toLowerCase().includes('restricted') || n.toLowerCase().includes('rsu'));
 
   // --- ESPP Sheet ---
-  const esppRows = sheets['ESPP'];
+  const esppRows = esppSheetName ? sheets[esppSheetName] : null;
   if (esppRows && esppRows.length > 1) {
-    const headers: string[] = (esppRows[0] || []).map((h: any) => String(h || '').trim().toLowerCase());
-    const col = (name: string) => headers.findIndex(h => h.includes(name.toLowerCase()));
+    const headers: string[] = (esppRows[0] || []).map((h: any) =>
+      String(h || '').trim().toLowerCase().replace(/[:\s]+$/, '') // strip trailing colon/space
+    );
 
-    const symCol       = col('symbol');
-    const purDateCol   = col('purchase date');
-    const purPriceCol  = col('purchase price');
-    const purQtyCol    = col('purchased qty');
-    const netSharesCol = col('net shares');
-    const sellQtyCol   = col('sellable qty');
-    const mktValCol    = col('est. market value');
-    const gainCol      = col('expected gain');
-    const discCol      = col('discount percent');
-    const cbCol        = col('cost basis (per share)');
-    const tgCol        = col('taxable gain/loss (per share)');
-    const taxStatCol   = col('tax status');
-    const firstSellCol = col('first sellable');
+    // Precise column finder: exact → startsWith → includes (avoids "grant date" matching "original grant date")
+    const col = (patterns: string[]): number => {
+      for (const p of patterns) {
+        const lp = p.toLowerCase();
+        let idx = headers.findIndex(h => h === lp);
+        if (idx >= 0) return idx;
+        idx = headers.findIndex(h => h.startsWith(lp));
+        if (idx >= 0) return idx;
+        idx = headers.findIndex(h => h.includes(lp));
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    };
+
+    const symCol       = col(['symbol']);
+    const purDateCol   = col(['purchase date']);
+    const purPriceCol  = col(['purchase price']);
+    const purQtyCol    = col(['purchased qty']);
+    const netSharesCol = col(['net shares']);
+    const sellQtyCol   = col(['sellable qty']);
+    const mktValCol    = col(['est. market value', 'market value']);
+    const gainCol      = col(['expected gain/loss', 'expected gain']);
+    const discCol      = col(['discount percent']);
+    const cbCol        = col(['est. cost basis (per share)', 'cost basis (per share)']);
+    const tgCol        = col(['est. taxable gain/loss (per share)', 'taxable gain/loss (per share)']);
+    const taxStatCol   = col(['tax status']);
+    const firstSellCol = col(['first sellable date', 'first sellable']);
 
     for (let i = 1; i < esppRows.length; i++) {
       const row = esppRows[i];
-      if (!row || !row[symCol]) continue;
-      const symbol = String(row[symCol] || '');
+      if (!row || symCol < 0 || !row[symCol]) continue;
+      const symbol = String(row[symCol] || '').trim();
       const purchaseDate = excelDateToISO(row[purDateCol]);
       const purchasePrice = toNum(row[purPriceCol]);
       if (!symbol || !purchaseDate || isNaN(purchasePrice)) continue;
@@ -100,7 +112,7 @@ export function parseEtradeXlsx(text: string): EtradeData {
         discountPct: toNum(row[discCol]),
         costBasisPerShare: toNum(row[cbCol]),
         taxableGainPerShare: toNum(row[tgCol]),
-        taxStatus: String(row[taxStatCol] || 'Unknown'),
+        taxStatus: String(row[taxStatCol] || 'Unknown').trim(),
         firstSellableDate: firstSellCol >= 0 ? excelDateToISO(row[firstSellCol]) : null,
       };
       esppLots.push(lot);
@@ -117,46 +129,68 @@ export function parseEtradeXlsx(text: string): EtradeData {
     }
   }
 
-  // --- Restricted Stock Sheet ---
-  const rsuRows = sheets['Restricted Stock'];
+  // --- RSU Sheet ---
+  const rsuRows = rsuSheetName ? sheets[rsuSheetName] : null;
   if (rsuRows && rsuRows.length > 1) {
-    const headers: string[] = (rsuRows[0] || []).map((h: any) => String(h || '').trim().toLowerCase());
-    const col = (name: string) => headers.findIndex(h => h.includes(name.toLowerCase()));
+    const headers: string[] = (rsuRows[0] || []).map((h: any) =>
+      String(h || '').trim().toLowerCase().replace(/[:\s]+$/, '')
+    );
 
-    const symCol      = col('symbol');
-    const grantDateCol = col('grant date');
-    const grantedCol  = col('granted qty.');
-    const vestedCol   = col('vested qty.');
-    const unvestedCol = col('unvested qty.');
-    const sellableCol = col('sellable qty.');
-    const mktValCol   = col('est. market value');
-    const vestDateCol = col('vest date');
-    const taxPaidCol  = col('total taxes paid');
-    const taxRateCol  = col('effective tax rate');
-    const taxGainCol  = col('taxable gain');
-    const cbCol       = col('cost basis (per share)');
+    const col = (patterns: string[]): number => {
+      for (const p of patterns) {
+        const lp = p.toLowerCase();
+        // Exact match first
+        let idx = headers.findIndex(h => h === lp);
+        if (idx >= 0) return idx;
+        // startsWith (avoids "original grant date" matching "grant date")
+        idx = headers.findIndex(h => h.startsWith(lp) && (h.length === lp.length || h[lp.length] === ' ' || h[lp.length] === '.'));
+        if (idx >= 0) return idx;
+        // includes fallback
+        idx = headers.findIndex(h => h.includes(lp));
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    };
+
+    const symCol       = col(['symbol']);
+    const grantDateCol = col(['grant date']);       // must NOT match "original grant date"
+    const grantedCol   = col(['granted qty']);
+    const vestedCol    = col(['vested qty']);
+    const unvestedCol  = col(['unvested qty']);
+    const sellableCol  = col(['sellable qty']);
+    const mktValCol    = col(['est. market value', 'market value']);
+    const vestDateCol  = col(['vest date']);
+    const taxPaidCol   = col(['total taxes paid']);
+    const taxRateCol   = col(['effective tax rate']);
+    const taxGainCol   = col(['taxable gain']);
+    const cbCol        = col(['est. cost basis (per share)', 'cost basis (per share)']);
 
     const seen = new Set<string>();
     for (let i = 1; i < rsuRows.length; i++) {
       const row = rsuRows[i];
-      if (!row || !row[symCol]) continue;
-      const symbol = String(row[symCol] || '');
-      const grantDate = excelDateToISO(row[grantDateCol]);
-      if (!symbol || !grantDate) continue;
+      if (!row || symCol < 0 || !row[symCol]) continue;
+      const symbol = String(row[symCol] || '').trim();
+      if (!symbol) continue;
 
-      const key = `${symbol}-${grantDate}`;
+      const grantDate = grantDateCol >= 0 ? excelDateToISO(row[grantDateCol]) : null;
+      // Use vest date as fallback key if no grant date
+      const vestDate = vestDateCol >= 0 ? excelDateToISO(row[vestDateCol]) : null;
+      const keyDate = grantDate || vestDate;
+      if (!keyDate) continue;
+
+      const key = `${symbol}-${keyDate}`;
       if (seen.has(key)) continue;
       seen.add(key);
 
       const grant: RsuGrant = {
         symbol,
-        grantDate,
+        grantDate: grantDate || keyDate,
         grantedQty: toNum(row[grantedCol]),
         vestedQty: toNum(row[vestedCol]),
         unvestedQty: toNum(row[unvestedCol]),
         sellableQty: toNum(row[sellableCol]),
         marketValue: toNum(row[mktValCol]),
-        vestDate: vestDateCol >= 0 ? excelDateToISO(row[vestDateCol]) : null,
+        vestDate,
         totalTaxesPaid: toNum(row[taxPaidCol]),
         effectiveTaxRate: toNum(row[taxRateCol]),
         taxableGain: toNum(row[taxGainCol]),
@@ -167,7 +201,7 @@ export function parseEtradeXlsx(text: string): EtradeData {
   }
 
   const totalEsppValue = esppLots.reduce((s, l) => s + l.marketValue, 0);
-  const totalRsuValue = rsuGrants.reduce((s, g) => s + g.marketValue, 0);
+  const totalRsuValue  = rsuGrants.reduce((s, g) => s + g.marketValue, 0);
 
   return { esppLots, rsuGrants, totalEsppValue, totalRsuValue, transactions };
 }
@@ -181,12 +215,11 @@ function toNum(val: any): number {
 function excelDateToISO(val: any): string | null {
   if (!val) return null;
   const s = String(val).trim();
-  // Already a date string MM/DD/YYYY or YYYY-MM-DD
   let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  if (m) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
   m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) return s;
-  // Excel serial number
+  // Excel serial date
   const num = parseFloat(s);
   if (!isNaN(num) && num > 1000) {
     const date = new Date((num - 25569) * 86400 * 1000);

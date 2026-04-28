@@ -14,7 +14,7 @@ export function Tax() {
   if (loading) return <div className="p-6 text-gray-400">Loading...</div>;
   if (!data) return <div className="p-6 text-gray-400">No tax data yet. Upload your Etrade and Fidelity statements.</div>;
 
-  const { espp, rsu, retirement, upcomingVests, actions } = data;
+  const { espp, rsu, retirement, upcomingVests, actions, holdings } = data;
 
   return (
     <div className="p-6 space-y-6">
@@ -159,6 +159,49 @@ export function Tax() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Robinhood Holdings */}
+      {holdings && holdings.length > 0 && (
+        <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
+          <h2 className="text-sm font-medium text-gray-400 mb-1">Robinhood Holdings</h2>
+          <p className="text-xs text-gray-500 mb-4">Cost basis not in PDF — gains shown are unrealized market value only. Use Robinhood tax forms (1099-B) for realized gain/loss.</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-500 border-b border-gray-800">
+                  <th className="text-left py-2">Symbol</th>
+                  <th className="text-right py-2">Shares</th>
+                  <th className="text-right py-2">Price</th>
+                  <th className="text-right py-2">Market Value</th>
+                  <th className="text-right py-2">% of Portfolio</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {(() => {
+                  const total = holdings.reduce((s: number, h: any) => s + h.marketValue, 0);
+                  return holdings.map((h: any, i: number) => {
+                    const pctOfPort = total > 0 ? (h.marketValue / total) * 100 : 0;
+                    return (
+                      <tr key={i} className="text-gray-300">
+                        <td className="py-2 font-medium">{h.symbol}</td>
+                        <td className="py-2 text-right">{h.qty.toFixed(4)}</td>
+                        <td className="py-2 text-right">{currency(h.price)}</td>
+                        <td className="py-2 text-right">{currency(h.marketValue)}</td>
+                        <td className={`py-2 text-right font-medium ${pctOfPort > 40 ? "text-red-400" : pctOfPort > 25 ? "text-yellow-400" : "text-gray-300"}`}>
+                          {pctOfPort.toFixed(1)}%
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-gray-500 flex items-center gap-1">
+            <TrendingUp size={11} /> To get realized gain/loss, download your 1099-B from Robinhood and check tax forms section.
+          </p>
         </div>
       )}
 
