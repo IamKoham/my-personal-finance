@@ -65,12 +65,12 @@ export function EmergencyFund() {
         {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Stat
-            label="Liquid Cash (after goals)"
+            label="Liquid Cash (after goals saved)"
             value={currency(data.current)}
-            sub={data.allocated_to_goals > 0 ? `${currency(data.liquid_cash)} − ${currency(data.allocated_to_goals)} goals` : undefined}
+            sub={data.allocated_to_goals > 0 ? `${currency(data.liquid_cash)} − ${currency(data.allocated_to_goals)} saved for goals` : undefined}
           />
           <Stat
-            label={`Target (${data.target_months} mo × avg expenses)`}
+            label={`EF Target (${data.target_months} mo × avg expenses)`}
             value={currency(data.target)}
           />
           <Stat
@@ -82,6 +82,11 @@ export function EmergencyFund() {
             label="Available to Invest"
             value={currency(data.available_to_invest)}
             color={data.available_to_invest > 0 ? 'green' : undefined}
+            sub={
+              data.remaining_for_goals > 0
+                ? `After EF + ${currency(data.remaining_for_goals)} still needed for goals`
+                : data.after_ef_surplus > 0 ? 'All goals funded ✓' : undefined
+            }
           />
         </div>
 
@@ -121,8 +126,10 @@ export function EmergencyFund() {
             title="Available to invest"
             detail={
               data.available_to_invest > 0
-                ? `${currency(data.available_to_invest)} above your target — consider putting this to work in your investment accounts.`
-                : `Build your emergency fund to ${data.target_months} months before investing surplus cash.`
+                ? `${currency(data.available_to_invest)} free after EF target + goal needs — consider putting this to work in your investment accounts.`
+                : data.after_ef_surplus > 0
+                  ? `${currency(data.after_ef_surplus)} above EF target, but ${currency(data.remaining_for_goals)} is still needed for your goals.`
+                  : `Build your emergency fund to ${data.target_months} months before investing surplus cash.`
             }
           />
         </div>
