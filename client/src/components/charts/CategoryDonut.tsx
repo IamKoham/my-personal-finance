@@ -26,7 +26,11 @@ export function CategoryDonut({ data, onSelect }: Props) {
       main.push({ name, value });
     }
   }
-  if (otherSum > 0) main.push({ name: 'Other', value: otherSum });
+  if (otherSum > 0) {
+    const existing = main.find(e => e.name === 'Other');
+    if (existing) existing.value += otherSum;
+    else main.push({ name: 'Other', value: otherSum });
+  }
 
   if (main.length === 0) {
     return <div className="flex items-center justify-center h-44 text-sm text-gray-500">No expense data</div>;

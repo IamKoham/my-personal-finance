@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { dbAll, dbRun } from '../db/db';
+import { categorize } from '../services/categorizer';
 
 const router = Router();
 
@@ -17,6 +18,19 @@ router.get('/', (req, res) => {
 
   sql += ' ORDER BY date DESC';
   res.json(dbAll(db, sql, params));
+});
+
+// Re-run categorizer on all existing transactions
+router.post('/recategorize', (req, res) => {
+  const db = req.app.locals.db;
+  const rows = dbAll(db, 'SELECT id, description FROM transactions', []) as { id: number; description: string }[];
+  let updated = 0;
+  for (const row of rows) {
+    const category = categorize(row.description);
+    dbRun(db, 'UPDATE transactions SET category = ? WHERE id = ?', [category, row.id]);
+    updated++;
+  }
+  res.json({ ok: true, updated });
 });
 
 router.patch('/:id', (req, res) => {

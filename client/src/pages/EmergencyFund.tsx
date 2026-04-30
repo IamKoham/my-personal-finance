@@ -8,6 +8,8 @@ export function EmergencyFund() {
   const [data, setData] = useState<any>(null);
   const { settings, fetch: fetchSettings, update } = useSettings();
   const [editMonths, setEditMonths] = useState('3');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [toast, setToast] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -19,9 +21,13 @@ export function EmergencyFund() {
   }, [settings]);
 
   const handleSave = async () => {
+    setSaveState('saving');
     await update('emergency_fund_months', editMonths);
     const fresh = await api.getEmergencyFund();
     setData(fresh);
+    setSaveState('saved');
+    setToast(true);
+    setTimeout(() => { setSaveState('idle'); setToast(false); }, 2500);
   };
 
   const colorMap = { red: '#ef4444', yellow: '#eab308', green: '#22c55e' };
@@ -37,14 +43,48 @@ export function EmergencyFund() {
 
   return (
     <div className="p-6 space-y-6">
+      {toast && (
+        <div
+          className="fixed top-4 left-1/2 z-50 bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap"
+          style={{ animation: 'fadeSlideIn 0.2s ease-out' }}
+        >
+          Target months updated ✓
+          <style>{`@keyframes fadeSlideIn { from { opacity:0; transform:translateX(-50%) translateY(-6px) } to { opacity:1; transform:translateX(-50%) translateY(0) } }`}</style>
+        </div>
+      )}
 
       {/* Status card */}
       <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-        <div className="flex items-center gap-3 mb-4">
-          <Shield size={24} style={{ color: colorMap[data.status as 'red'|'yellow'|'green'] }} />
-          <div>
-            <h2 className="text-lg font-semibold text-white">Emergency Fund</h2>
-            <p className="text-sm text-gray-400">{statusLabel[data.status as 'red'|'yellow'|'green']}</p>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Shield size={24} style={{ color: colorMap[data.status as 'red'|'yellow'|'green'] }} />
+            <div>
+              <h2 className="text-lg font-semibold text-white">Emergency Fund</h2>
+              <p className="text-sm text-gray-400">{statusLabel[data.status as 'red'|'yellow'|'green']}</p>
+            </div>
+          </div>
+          {/* Target months inline CTA */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-500 whitespace-nowrap">Target months</label>
+            <input
+              type="number"
+              value={editMonths}
+              min={1}
+              max={24}
+              onChange={e => setEditMonths(e.target.value)}
+              className="w-14 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white text-center focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+            <button
+              onClick={handleSave}
+              disabled={saveState === 'saving'}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                saveState === 'saved'
+                  ? 'bg-emerald-800 text-emerald-300'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              } disabled:opacity-60`}
+            >
+              {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
+            </button>
           </div>
         </div>
 
@@ -135,30 +175,6 @@ export function EmergencyFund() {
         </div>
       )}
 
-      {/* Settings */}
-      <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-400 mb-4">Settings</h2>
-        <div className="space-y-4 max-w-sm">
-          <div>
-            <label className="text-xs text-gray-400">Target months of expenses</label>
-            <p className="text-xs text-gray-600 mb-1">Recommended: 3–6 months</p>
-            <input
-              type="number"
-              value={editMonths}
-              min={1}
-              max={24}
-              onChange={e => setEditMonths(e.target.value)}
-              className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            />
-          </div>
-          <button
-            onClick={handleSave}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            Save & Recalculate
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

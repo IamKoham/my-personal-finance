@@ -1,7 +1,7 @@
 export const CATEGORIES = [
   'Groceries', 'Restaurants', 'Transport', 'Subscriptions',
   'Utilities', 'Rent', 'Health', 'Shopping',
-  'Travel', 'Income', 'Gasoline', 'Other',
+  'Travel', 'Income', 'Gasoline', 'Misc',
 ] as const;
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -16,7 +16,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Travel:        '#14b8a6',
   Income:        '#10b981',
   Gasoline:      '#f59e0b',
-  Other:         '#6b7280',
+  Misc:          '#6b7280',
 };
 
 export const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment'] as const;
