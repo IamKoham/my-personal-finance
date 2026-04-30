@@ -15,9 +15,20 @@ Upload bank and investment statements manually — the app parses them, categori
 
 ---
 
-## Setup
+## System Requirements
 
-**Requirements**: Node.js 18+
+| | Minimum |
+|---|---|
+| **OS** | macOS 12+, Windows 10+, Ubuntu 20.04+ |
+| **Node.js** | 18+ (recommend 20 LTS) |
+| **RAM** | 512 MB free |
+| **Disk** | 200 MB (app) + space for your database |
+
+No database installation needed — SQLite runs in-process via sql.js (pure JavaScript, no native binaries).
+
+---
+
+## Setup
 
 ```bash
 git clone git@github.com:IamKoham/my-personal-finance.git
