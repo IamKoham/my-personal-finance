@@ -50,7 +50,7 @@ The database is created automatically on first run. No environment variables or 
 |---|---|---|
 | Bank of America | Checking, Savings | CSV |
 | Chase | Checking, Savings | CSV |
-| Chase Sapphire Preferred | Credit Card | PDF |
+| Chase | Credit Card | PDF |
 | Discover It | Credit Card | PDF |
 | Robinhood | Investment | PDF |
 | Fidelity | Investment | PDF |
