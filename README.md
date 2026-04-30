@@ -41,9 +41,9 @@ The database is created automatically on first run. No environment variables or 
 | Chase | Checking, Savings | CSV |
 | Chase Sapphire Preferred | Credit Card | PDF |
 | Discover It | Credit Card | PDF |
-| Robinhood | Brokerage | PDF |
-| Fidelity NetBenefits | 401k | PDF |
-| E*Trade | RSU + ESPP | XLSX |
+| Robinhood | Investment | PDF |
+| Fidelity | Investment | PDF |
+| E*Trade | Investment | XLSX |
 
 ---
 
