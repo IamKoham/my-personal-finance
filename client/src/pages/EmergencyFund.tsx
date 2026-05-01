@@ -98,9 +98,31 @@ export function EmergencyFund() {
             }}
           />
         </div>
-        <p className="text-xs text-gray-500 mb-5">
-          {data.percent.toFixed(0)}% of {data.target_months}-month target
-        </p>
+
+        {/* Target months inline CTA */}
+        <div className="flex items-center gap-2 mt-1 mb-5">
+          <p className="text-xs text-gray-500">{data.percent.toFixed(0)}% of</p>
+          <input
+            type="number"
+            value={editMonths}
+            min={1}
+            max={24}
+            onChange={e => setEditMonths(e.target.value)}
+            className="w-12 bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-xs text-white text-center focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+          <p className="text-xs text-gray-500">-month target</p>
+          <button
+            onClick={handleSave}
+            disabled={saveState === 'saving'}
+            className={`ml-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+              saveState === 'saved'
+                ? 'bg-emerald-800 text-emerald-300'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            } disabled:opacity-60`}
+          >
+            {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
+          </button>
+        </div>
 
         {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -174,7 +196,6 @@ export function EmergencyFund() {
           />
         </div>
       )}
-
     </div>
   );
 }

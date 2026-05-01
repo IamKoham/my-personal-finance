@@ -4,11 +4,25 @@ import { useDateRange } from "../store/useDateRange";
 import { currency, pct } from "../lib/formatters";
 import { SpendingBarChart } from "../components/charts/SpendingBarChart";
 import { CategoryDonut } from "../components/charts/CategoryDonut";
-import { TrendingUp, TrendingDown, DollarSign, Wallet, Landmark, AlertTriangle, ShieldAlert, Info } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Wallet, Landmark, AlertTriangle, ShieldAlert, ArrowUp, ArrowDown } from "lucide-react";
+
+function shiftPeriod(start: string, end: string) {
+  const s = new Date(start);
+  const e = new Date(end);
+  const days = Math.round((e.getTime() - s.getTime()) / 86400000);
+  const priorEnd = new Date(s.getTime() - 86400000);
+  const priorStart = new Date(priorEnd.getTime() - days * 86400000);
+  return {
+    priorEnd: priorEnd.toISOString().slice(0, 10),
+    priorStart: priorStart.toISOString().slice(0, 10),
+  };
+}
 
 export function Overview() {
-  const { start, end } = useDateRange();
+  const { start, end } = useDateRange("/");
   const [summary, setSummary]           = useState<any[]>([]);
+  const [priorSummary, setPriorSummary] = useState<any[]>([]);
+  const [allTimeSummary, setAllTime]    = useState<any[]>([]);
   const [accounts, setAccounts]         = useState<any[]>([]);
   const [recommendations, setRecs]      = useState<any[]>([]);
   const [investSummary, setInvest]      = useState<any>(null);
@@ -17,15 +31,20 @@ export function Overview() {
 
   useEffect(() => {
     setLoading(true);
+    const { priorStart, priorEnd } = shiftPeriod(start, end);
     Promise.all([
       api.getSummary({ start, end }),
+      api.getSummary({ start: priorStart, end: priorEnd }),
+      api.getSummary(),
       api.getAccounts(),
       api.getRecommendations(),
       api.getInvestmentSummary().catch(() => null),
       api.getEmergencyFund().catch(() => null),
     ])
-      .then(([s, a, r, inv, ef]) => {
+      .then(([s, prior, allTime, a, r, inv, ef]) => {
         setSummary(s);
+        setPriorSummary(prior);
+        setAllTime(allTime);
         setAccounts(a);
         setRecs(r);
         setInvest(inv);
@@ -34,28 +53,34 @@ export function Overview() {
       .finally(() => setLoading(false));
   }, [start, end]);
 
-  // ── Wealth snapshot (always current, not date-filtered) ──────────────────
+  // ── Wealth snapshot ──────────────────────────────────────────────────────────
   const liquidRaw  = accounts.filter(a => a.type === "checking" || a.type === "savings").reduce((s, a) => s + a.balance, 0);
   const goalAlloc  = efData?.allocated_to_goals ?? 0;
-  const liquidNet  = Math.max(0, liquidRaw - goalAlloc);           // freely available cash
+  const liquidNet  = Math.max(0, liquidRaw - goalAlloc);
   const creditDebt = accounts.filter(a => a.type === "credit").reduce((s, a) => s + a.balance, 0);
-
-  // Use investment summary API (Robinhood holdings + Fidelity 401k + ESPP + RSU vested)
-  // Fall back to accounts table if API not yet populated
   const investTotal = investSummary?.total > 0
     ? investSummary.total
     : accounts.filter(a => a.type === "investment").reduce((s, a) => s + a.balance, 0);
+  const netWorth = liquidRaw + investTotal - creditDebt;
 
-  const netWorth = liquidRaw + investTotal - creditDebt;  // true net worth (goals still count as assets)
-
-  // ── Period income/expenses (date-filtered) ───────────────────────────────
+  // ── Period cash flow ─────────────────────────────────────────────────────────
   const totalIncome   = summary.reduce((s, m) => s + m.income, 0);
   const totalExpenses = summary.reduce((s, m) => s + m.expenses, 0);
   const net           = totalIncome - totalExpenses;
   const savingsRate   = totalIncome > 0 ? (net / totalIncome) * 100 : 0;
   const srColor       = savingsRate >= 20 ? "emerald" : savingsRate >= 10 ? "yellow" : "red";
 
-  // ── Category spend for donut ─────────────────────────────────────────────
+  // ── Trend vs prior period ────────────────────────────────────────────────────
+  const priorIncome   = priorSummary.reduce((s, m) => s + m.income, 0);
+  const priorExpenses = priorSummary.reduce((s, m) => s + m.expenses, 0);
+  const incomeTrend   = priorIncome > 0   ? ((totalIncome - priorIncome) / priorIncome) * 100 : null;
+  const expenseTrend  = priorExpenses > 0 ? ((totalExpenses - priorExpenses) / priorExpenses) * 100 : null;
+
+  // ── All-time averages ────────────────────────────────────────────────────────
+  const avgMonthlyIncome   = allTimeSummary.length > 0 ? allTimeSummary.reduce((s, m) => s + m.income, 0) / allTimeSummary.length : 0;
+  const avgMonthlyExpenses = allTimeSummary.length > 0 ? allTimeSummary.reduce((s, m) => s + m.expenses, 0) / allTimeSummary.length : 0;
+
+  // ── Category spend for donut ─────────────────────────────────────────────────
   const byCategory: Record<string, number> = {};
   for (const m of summary) {
     for (const [cat, amt] of Object.entries(m.by_category ?? {})) {
@@ -87,35 +112,10 @@ export function Overview() {
       <div>
         <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Wealth Snapshot</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            label="Net Worth"
-            value={netWorth}
-            icon={<Wallet size={16}/>}
-            color="blue"
-            sub="Assets − debt"
-          />
-          <KpiCard
-            label="Liquid Cash"
-            value={liquidNet}
-            icon={<Landmark size={16}/>}
-            color="slate"
-            sub={goalAlloc > 0 ? `${currency(liquidRaw)} − ${currency(goalAlloc)} goals` : "Checking + savings"}
-          />
-          <KpiCard
-            label="Investments"
-            value={investTotal}
-            icon={<TrendingUp size={16}/>}
-            color="emerald"
-            sub={investSummary ? `RH · 401k · ESPP · RSU (vested)` : "From accounts"}
-          />
-          <KpiCard
-            label="Credit Card Debt"
-            value={creditDebt}
-            icon={<TrendingDown size={16}/>}
-            color={creditDebt > 0 ? "red" : "slate"}
-            sub={creditDebt > 0 ? "Outstanding balance" : "No debt"}
-            negate
-          />
+          <KpiCard label="Net Worth"        value={netWorth}    icon={<Wallet size={16}/>}       color="blue"                              sub="Assets − debt" />
+          <KpiCard label="Liquid Cash"      value={liquidNet}   icon={<Landmark size={16}/>}     color="slate"                             sub={goalAlloc > 0 ? `${currency(liquidRaw)} − ${currency(goalAlloc)} goals` : "Checking + savings"} />
+          <KpiCard label="Investments"      value={investTotal} icon={<TrendingUp size={16}/>}   color="emerald"                           sub={investSummary ? "RH · 401k · ESPP · RSU (vested)" : "From accounts"} />
+          <KpiCard label="Credit Card Debt" value={creditDebt}  icon={<TrendingDown size={16}/>} color={creditDebt > 0 ? "red" : "slate"} sub={creditDebt > 0 ? "Outstanding balance" : "No debt"} negate />
         </div>
       </div>
 
@@ -123,9 +123,9 @@ export function Overview() {
       <div>
         <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Cash Flow — Selected Period</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Income"    value={totalIncome}   icon={<TrendingUp size={16}/>}   color="green" sub="Credits in period" />
-          <KpiCard label="Expenses"  value={totalExpenses} icon={<TrendingDown size={16}/>} color="red"   sub="Debits excl. investments" />
-          <KpiCard label="Net Saved" value={net}           icon={<DollarSign size={16}/>}   color={net >= 0 ? "green" : "red"} sub="Income − expenses" />
+          <KpiCard label="Income"    value={totalIncome}   icon={<TrendingUp size={16}/>}   color="green"                        sub={`Avg ${currency(avgMonthlyIncome)}/mo`}   trend={incomeTrend} trendInvert={false} />
+          <KpiCard label="Expenses"  value={totalExpenses} icon={<TrendingDown size={16}/>} color="red"                          sub={`Avg ${currency(avgMonthlyExpenses)}/mo`} trend={expenseTrend} trendInvert={true} />
+          <KpiCard label="Net Saved" value={net}           icon={<DollarSign size={16}/>}   color={net >= 0 ? "green" : "red"}   sub="Income − expenses" />
           <SavingsRateCard rate={savingsRate} color={srColor} />
         </div>
       </div>
@@ -135,10 +135,10 @@ export function Overview() {
         <div className="bg-gray-900 rounded-xl px-5 py-4 border border-gray-800">
           <p className="text-xs text-gray-500 mb-3">Investment Breakdown</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <MiniStat label="Robinhood" value={investSummary.robinhoodValue} color="blue" />
-            <MiniStat label="Fidelity 401k" value={investSummary.fidelityValue} color="emerald" />
-            <MiniStat label="Etrade ESPP" value={investSummary.esppValue} color="purple" />
-            <MiniStat label="Etrade RSU (vested)" value={investSummary.rsuValue} color="yellow" />
+            <MiniStat label="Robinhood"          value={investSummary.robinhoodValue} total={investSummary.total} color="blue" />
+            <MiniStat label="Fidelity 401k"      value={investSummary.fidelityValue}  total={investSummary.total} color="emerald" />
+            <MiniStat label="Etrade ESPP"        value={investSummary.esppValue}       total={investSummary.total} color="purple" />
+            <MiniStat label="Etrade RSU (vested)" value={investSummary.rsuValue}       total={investSummary.total} color="yellow" />
           </div>
         </div>
       )}
@@ -175,9 +175,22 @@ function Alert({ severity, title, detail }: { severity: "critical"|"warning"; ti
   );
 }
 
-function KpiCard({ label, value, icon, color, sub, negate }: {
+function TrendBadge({ trend, invert }: { trend: number; invert: boolean }) {
+  const isPositive = invert ? trend < 0 : trend > 0;
+  const color = isPositive ? "text-emerald-400" : "text-red-400";
+  const Icon  = trend > 0 ? ArrowUp : ArrowDown;
+  return (
+    <span className={`flex items-center gap-0.5 text-xs font-medium ${color}`}>
+      <Icon size={11} />
+      {Math.abs(trend).toFixed(1)}%
+    </span>
+  );
+}
+
+function KpiCard({ label, value, icon, color, sub, negate, trend, trendInvert }: {
   label: string; value: number; icon: React.ReactNode;
   color: string; sub?: string; negate?: boolean;
+  trend?: number | null; trendInvert?: boolean;
 }) {
   const colorMap: Record<string, string> = {
     blue:    "text-blue-400 bg-blue-500/10",
@@ -198,7 +211,10 @@ function KpiCard({ label, value, icon, color, sub, negate }: {
         <span className={`p-1.5 rounded-lg ${colorMap[color] || colorMap.slate}`}>{icon}</span>
       </div>
       <p className={`text-xl font-bold ${valueColor}`}>{currency(Math.abs(value))}</p>
-      {sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
+      <div className="flex items-center justify-between mt-0.5">
+        {sub && <p className="text-xs text-gray-600">{sub}</p>}
+        {trend != null && <TrendBadge trend={trend} invert={trendInvert ?? false} />}
+      </div>
     </div>
   );
 }
@@ -219,14 +235,16 @@ function SavingsRateCard({ rate, color }: { rate: number; color: string }) {
   );
 }
 
-function MiniStat({ label, value, color }: { label: string; value: number; color: string }) {
+function MiniStat({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
   const textMap: Record<string, string> = { blue: "text-blue-400", emerald: "text-emerald-400", purple: "text-purple-400", yellow: "text-yellow-400" };
+  const allocation = total > 0 && value > 0 ? ((value / total) * 100).toFixed(1) : null;
   return (
     <div>
       <p className="text-xs text-gray-500 mb-0.5">{label}</p>
       <p className={`text-base font-semibold ${value > 0 ? (textMap[color] || "text-white") : "text-gray-500"}`}>
         {value > 0 ? currency(value) : "—"}
       </p>
+      {allocation && <p className="text-xs text-gray-600 mt-0.5">{allocation}% of portfolio</p>}
     </div>
   );
 }

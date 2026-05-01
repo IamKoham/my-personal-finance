@@ -10,7 +10,7 @@ import { Info, TrendingUp, TrendingDown } from 'lucide-react';
 type Tab = 'expenses' | 'credits';
 
 export function Spending() {
-  const { start, end } = useDateRange();
+  const { start, end } = useDateRange("/spending");
   const [debits, setDebits]   = useState<any[]>([]);
   const [credits, setCredits] = useState<any[]>([]);
   const [summary, setSummary] = useState<any[]>([]);
