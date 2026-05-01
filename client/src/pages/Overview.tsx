@@ -1,4 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+
+function useCountUp(target: number, duration = 700) {
+  const [val, setVal] = useState(0);
+  const prev = useRef(0);
+  useEffect(() => {
+    const from = prev.current;
+    prev.current = target;
+    if (from === target) return;
+    const start = Date.now();
+    const tick = () => {
+      const p = Math.min((Date.now() - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(from + (target - from) * eased);
+      if (p < 1) requestAnimationFrame(tick);
+      else setVal(target);
+    };
+    requestAnimationFrame(tick);
+  }, [target]);
+  return val;
+}
 import { useNavigate } from "react-router-dom";
 import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import { api } from "../lib/api";
@@ -299,6 +319,7 @@ function KpiCard({ label, value, icon, color, sub, negate, trend, trendInvert }:
   color: string; sub?: string; negate?: boolean;
   trend?: number | null; trendInvert?: boolean;
 }) {
+  const animated = useCountUp(Math.abs(value));
   const colorMap: Record<string, string> = {
     blue:    "text-blue-400 bg-blue-500/10",
     emerald: "text-emerald-400 bg-emerald-500/10",
@@ -308,16 +329,25 @@ function KpiCard({ label, value, icon, color, sub, negate, trend, trendInvert }:
     slate:   "text-slate-300 bg-slate-500/10",
     purple:  "text-purple-400 bg-purple-500/10",
   };
+  const gradMap: Record<string, string> = {
+    green:   "from-gray-900 to-green-950/40",
+    emerald: "from-gray-900 to-emerald-950/40",
+    red:     "from-gray-900 to-red-950/30",
+    blue:    "from-gray-900 to-blue-950/30",
+    yellow:  "from-gray-900 to-yellow-950/20",
+    slate:   "from-gray-900 to-gray-900",
+    purple:  "from-gray-900 to-purple-950/30",
+  };
   const displayValue = negate ? -value : value;
   const valueColor = displayValue < 0 ? "text-red-400" : color === "green" ? "text-green-400" : color === "emerald" ? "text-emerald-400" : color === "red" && value > 0 ? "text-red-400" : "text-white";
 
   return (
-    <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-600 hover:shadow-lg hover:shadow-black/30">
+    <div className={`bg-gradient-to-br ${gradMap[color] || gradMap.slate} rounded-xl p-4 border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-600 hover:shadow-lg hover:shadow-black/30`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-400">{label}</span>
         <span className={`p-1.5 rounded-lg ${colorMap[color] || colorMap.slate}`}>{icon}</span>
       </div>
-      <p className={`text-xl font-bold ${valueColor}`}>{currency(Math.abs(value))}</p>
+      <p className={`text-xl font-bold ${valueColor}`}>{currency(animated)}</p>
       <div className="flex items-center justify-between mt-0.5">
         {sub && <p className="text-xs text-gray-600">{sub}</p>}
         {trend != null && <TrendBadge trend={trend} invert={trendInvert ?? false} />}
@@ -327,16 +357,18 @@ function KpiCard({ label, value, icon, color, sub, negate, trend, trendInvert }:
 }
 
 function SavingsRateCard({ rate, color }: { rate: number; color: string }) {
+  const animatedRate = useCountUp(Math.max(0, rate));
   const label  = color === "emerald" ? "Great" : color === "yellow" ? "OK" : "Low";
-  const badge  = color === "emerald" ? "bg-emerald-500/20 text-emerald-400" : color === "yellow" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400";
+  const badge  = color === "emerald" ? "bg-emerald-500/20 text-emerald-400" : color === "yellow" ? "bg-yellow-500/20 text-yellow-400" : "bg-red-500/20 text-red-400 animate-pulse";
   const text   = color === "emerald" ? "text-emerald-400" : color === "yellow" ? "text-yellow-400" : "text-red-400";
+  const grad   = color === "emerald" ? "from-gray-900 to-emerald-950/40" : color === "yellow" ? "from-gray-900 to-yellow-950/20" : "from-gray-900 to-red-950/30";
   return (
-    <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+    <div className={`bg-gradient-to-br ${grad} rounded-xl p-4 border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-600 hover:shadow-lg hover:shadow-black/30`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-400">Savings Rate</span>
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge}`}>{label}</span>
       </div>
-      <p className={`text-xl font-bold ${text}`}>{pct(Math.max(0, rate))}</p>
+      <p className={`text-xl font-bold ${text}`}>{pct(animatedRate)}</p>
       <p className="text-xs text-gray-600 mt-0.5">of income saved</p>
     </div>
   );
