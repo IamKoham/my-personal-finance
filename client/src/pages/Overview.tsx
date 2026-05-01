@@ -127,7 +127,7 @@ export function Overview() {
   // ── Onboarding check ─────────────────────────────────────────────────────────
   const isEmpty = !loading && totalIncome === 0 && totalExpenses === 0 && netWorth === 0 && recentTx.length === 0;
 
-  if (loading) return <div className="p-6 text-gray-400">Loading...</div>;
+  if (loading) return <OverviewSkeleton />;
 
   if (isEmpty) {
     return (
@@ -312,7 +312,7 @@ function KpiCard({ label, value, icon, color, sub, negate, trend, trendInvert }:
   const valueColor = displayValue < 0 ? "text-red-400" : color === "green" ? "text-green-400" : color === "emerald" ? "text-emerald-400" : color === "red" && value > 0 ? "text-red-400" : "text-white";
 
   return (
-    <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+    <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-600 hover:shadow-lg hover:shadow-black/30">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs text-gray-400">{label}</span>
         <span className={`p-1.5 rounded-lg ${colorMap[color] || colorMap.slate}`}>{icon}</span>
@@ -352,6 +352,63 @@ function MiniStat({ label, value, total, color }: { label: string; value: number
         {value > 0 ? currency(value) : "—"}
       </p>
       {allocation && <p className="text-xs text-gray-600 mt-0.5">{allocation}% of portfolio</p>}
+    </div>
+  );
+}
+
+function Skel({ className }: { className?: string }) {
+  return <div className={`bg-gray-800 animate-pulse rounded ${className}`} />;
+}
+
+function OverviewSkeleton() {
+  return (
+    <div className="p-6 space-y-6">
+      {/* Hero */}
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 px-6 py-5 flex items-center justify-between gap-4">
+        <div className="space-y-2">
+          <Skel className="h-3 w-20" />
+          <Skel className="h-8 w-40" />
+          <Skel className="h-3 w-24" />
+        </div>
+        <Skel className="h-16 flex-1 rounded-lg" />
+      </div>
+      {/* Wealth snapshot */}
+      <div>
+        <Skel className="h-3 w-28 mb-3" />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-gray-900 rounded-xl p-4 border border-gray-800 space-y-2">
+              <Skel className="h-3 w-20" />
+              <Skel className="h-7 w-28" />
+              <Skel className="h-3 w-24" />
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Cash flow */}
+      <div>
+        <Skel className="h-3 w-40 mb-3" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-gray-900 rounded-xl p-4 border border-gray-800 space-y-2">
+              <Skel className="h-3 w-16" />
+              <Skel className="h-7 w-24" />
+              <Skel className="h-3 w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+          <Skel className="h-3 w-32 mb-4" />
+          <Skel className="h-44 w-full rounded-lg" />
+        </div>
+        <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+          <Skel className="h-3 w-36 mb-4" />
+          <Skel className="h-44 w-full rounded-full mx-auto" style={{ maxWidth: 180 }} />
+        </div>
+      </div>
     </div>
   );
 }
