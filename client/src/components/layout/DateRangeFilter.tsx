@@ -11,6 +11,12 @@ const todayStr = () => toStr(new Date());
 const ytdStart = () => toStr(startOfYear(new Date()));
 const presetStart = (months: number) => toStr(startOfMonth(subMonths(new Date(), months - 1)));
 
+// Parse YYYY-MM-DD as local time (avoid UTC offset shifting the date)
+const parseLocal = (s: string): Date => {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
 const PRESETS = [
   { label: '1M',  getStart: () => presetStart(1) },
   { label: '3M',  getStart: () => presetStart(3) },
@@ -32,16 +38,17 @@ export function DateRangeFilter({ page }: Props) {
   const { start, end, setRange } = useDateRange(page);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange>({
-    from: new Date(start),
-    to: new Date(end),
+    from: parseLocal(start),
+    to: parseLocal(end),
   });
   const ref = useRef<HTMLDivElement>(null);
 
   const label = activeLabel(start, end);
 
+  // Reset to current applied range each time dropdown opens
   useEffect(() => {
-    setDraft({ from: new Date(start), to: new Date(end) });
-  }, [start, end, open]);
+    if (open) setDraft({ from: parseLocal(start), to: parseLocal(end) });
+  }, [open]);
 
   useEffect(() => {
     function onOutside(e: MouseEvent) {
@@ -102,8 +109,8 @@ export function DateRangeFilter({ page }: Props) {
           <DayPicker
             mode="range"
             selected={draft}
-            onSelect={r => r && setDraft(r)}
-            defaultMonth={draft.from}
+            onSelect={r => setDraft(r ?? { from: undefined, to: undefined })}
+            defaultMonth={new Date()}
             classNames={{
               root: 'text-gray-200 text-sm',
               months: 'flex gap-4',
