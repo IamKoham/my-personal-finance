@@ -1,10 +1,29 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from "recharts";
 import { api } from "../lib/api";
 import { useDateRange } from "../store/useDateRange";
-import { currency, pct } from "../lib/formatters";
+import { currency, pct, shortDate } from "../lib/formatters";
 import { SpendingBarChart } from "../components/charts/SpendingBarChart";
 import { CategoryDonut } from "../components/charts/CategoryDonut";
-import { TrendingUp, TrendingDown, DollarSign, Wallet, Landmark, AlertTriangle, ShieldAlert, ArrowUp, ArrowDown } from "lucide-react";
+import {
+  TrendingUp, TrendingDown, DollarSign, Wallet, Landmark,
+  AlertTriangle, ShieldAlert, ArrowUp, ArrowDown, Upload, ShoppingCart,
+  Car, Home, Zap, CreditCard, Repeat, ShoppingBag, Plane, Heart, Coffee
+} from "lucide-react";
+
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  Rent:          <Home size={13} />,
+  Transport:     <Car size={13} />,
+  Subscriptions: <Repeat size={13} />,
+  Utilities:     <Zap size={13} />,
+  Restaurants:   <Coffee size={13} />,
+  Groceries:     <ShoppingCart size={13} />,
+  Shopping:      <ShoppingBag size={13} />,
+  Travel:        <Plane size={13} />,
+  Health:        <Heart size={13} />,
+  'CC Payment':  <CreditCard size={13} />,
+};
 
 function shiftPeriod(start: string, end: string) {
   const s = new Date(start);
@@ -19,6 +38,7 @@ function shiftPeriod(start: string, end: string) {
 }
 
 export function Overview() {
+  const navigate = useNavigate();
   const { start, end } = useDateRange("/");
   const [summary, setSummary]           = useState<any[]>([]);
   const [priorSummary, setPriorSummary] = useState<any[]>([]);
@@ -27,6 +47,7 @@ export function Overview() {
   const [recommendations, setRecs]      = useState<any[]>([]);
   const [investSummary, setInvest]      = useState<any>(null);
   const [efData, setEfData]             = useState<any>(null);
+  const [recentTx, setRecentTx]         = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
 
   useEffect(() => {
@@ -40,8 +61,9 @@ export function Overview() {
       api.getRecommendations(),
       api.getInvestmentSummary().catch(() => null),
       api.getEmergencyFund().catch(() => null),
+      api.getTransactions({ limit: 10 }),
     ])
-      .then(([s, prior, allTime, a, r, inv, ef]) => {
+      .then(([s, prior, allTime, a, r, inv, ef, tx]) => {
         setSummary(s);
         setPriorSummary(prior);
         setAllTime(allTime);
@@ -49,6 +71,7 @@ export function Overview() {
         setRecs(r);
         setInvest(inv);
         setEfData(ef);
+        setRecentTx(tx);
       })
       .finally(() => setLoading(false));
   }, [start, end]);
@@ -62,6 +85,16 @@ export function Overview() {
     ? investSummary.total
     : accounts.filter(a => a.type === "investment").reduce((s, a) => s + a.balance, 0);
   const netWorth = liquidRaw + investTotal - creditDebt;
+
+  // ── Net worth sparkline from all-time monthly nets ───────────────────────────
+  const sparkData = (() => {
+    const sorted = [...allTimeSummary].sort((a, b) => a.month.localeCompare(b.month));
+    let running = netWorth - sorted.reduce((s, m) => s + m.net, 0);
+    return sorted.map(m => { running += m.net; return { v: running }; });
+  })();
+  const sparkTrend = sparkData.length >= 2
+    ? ((sparkData[sparkData.length - 1].v - sparkData[0].v) / Math.abs(sparkData[0].v || 1)) * 100
+    : null;
 
   // ── Period cash flow ─────────────────────────────────────────────────────────
   const totalIncome   = summary.reduce((s, m) => s + m.income, 0);
@@ -91,7 +124,30 @@ export function Overview() {
   const criticalRecs = recommendations.filter(r => r.severity === "critical");
   const warningRecs  = recommendations.filter(r => r.severity === "warning");
 
+  // ── Onboarding check ─────────────────────────────────────────────────────────
+  const isEmpty = !loading && totalIncome === 0 && totalExpenses === 0 && netWorth === 0 && recentTx.length === 0;
+
   if (loading) return <div className="p-6 text-gray-400">Loading...</div>;
+
+  if (isEmpty) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl p-10 max-w-sm w-full">
+          <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
+            <Upload size={22} className="text-blue-400" />
+          </div>
+          <h2 className="text-lg font-semibold text-white mb-2">No data yet</h2>
+          <p className="text-sm text-gray-400 mb-6">Upload your bank or investment statements to get started.</p>
+          <button
+            onClick={() => navigate("/uploads")}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition-colors"
+          >
+            Go to Uploads
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -108,11 +164,47 @@ export function Overview() {
         </div>
       )}
 
+      {/* Net Worth Hero */}
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 px-6 py-5 flex items-center justify-between gap-4">
+        <div className="flex-shrink-0">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Net Worth</p>
+          <p className="text-3xl font-bold text-white">{currency(netWorth)}</p>
+          <p className="text-xs text-gray-500 mt-1">Assets − debt</p>
+          {sparkTrend != null && (
+            <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${sparkTrend >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {sparkTrend >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+              {Math.abs(sparkTrend).toFixed(1)}% over period
+            </div>
+          )}
+        </div>
+        {sparkData.length > 1 && (
+          <div className="flex-1 h-16 min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={sparkData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="v" stroke="#3b82f6" strokeWidth={2} fill="url(#sparkGrad)" dot={false} />
+                <Tooltip
+                  content={({ active, payload }) =>
+                    active && payload?.length
+                      ? <div className="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white">{currency(payload[0].value as number)}</div>
+                      : null
+                  }
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
       {/* Row 1 — Wealth snapshot */}
       <div>
         <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Wealth Snapshot</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Net Worth"        value={netWorth}    icon={<Wallet size={16}/>}       color="blue"                              sub="Assets − debt" />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <KpiCard label="Liquid Cash"      value={liquidNet}   icon={<Landmark size={16}/>}     color="slate"                             sub={goalAlloc > 0 ? `${currency(liquidRaw)} − ${currency(goalAlloc)} goals` : "Checking + savings"} />
           <KpiCard label="Investments"      value={investTotal} icon={<TrendingUp size={16}/>}   color="emerald"                           sub={investSummary ? "RH · 401k · ESPP · RSU (vested)" : "From accounts"} />
           <KpiCard label="Credit Card Debt" value={creditDebt}  icon={<TrendingDown size={16}/>} color={creditDebt > 0 ? "red" : "slate"} sub={creditDebt > 0 ? "Outstanding balance" : "No debt"} negate />
@@ -123,9 +215,9 @@ export function Overview() {
       <div>
         <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Cash Flow — Selected Period</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Income"    value={totalIncome}   icon={<TrendingUp size={16}/>}   color="green"                        sub={`Avg ${currency(avgMonthlyIncome)}/mo`}   trend={incomeTrend} trendInvert={false} />
-          <KpiCard label="Expenses"  value={totalExpenses} icon={<TrendingDown size={16}/>} color="red"                          sub={`Avg ${currency(avgMonthlyExpenses)}/mo`} trend={expenseTrend} trendInvert={true} />
-          <KpiCard label="Net Saved" value={net}           icon={<DollarSign size={16}/>}   color={net >= 0 ? "green" : "red"}   sub="Income − expenses" />
+          <KpiCard label="Income"    value={totalIncome}   icon={<TrendingUp size={16}/>}   color="green"                       sub={`Avg ${currency(avgMonthlyIncome)}/mo`}   trend={incomeTrend}  trendInvert={false} />
+          <KpiCard label="Expenses"  value={totalExpenses} icon={<TrendingDown size={16}/>} color="red"                         sub={`Avg ${currency(avgMonthlyExpenses)}/mo`} trend={expenseTrend} trendInvert={true} />
+          <KpiCard label="Net Saved" value={net}           icon={<DollarSign size={16}/>}   color={net >= 0 ? "green" : "red"}  sub="Income − expenses" />
           <SavingsRateCard rate={savingsRate} color={srColor} />
         </div>
       </div>
@@ -135,10 +227,10 @@ export function Overview() {
         <div className="bg-gray-900 rounded-xl px-5 py-4 border border-gray-800">
           <p className="text-xs text-gray-500 mb-3">Investment Breakdown</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <MiniStat label="Robinhood"          value={investSummary.robinhoodValue} total={investSummary.total} color="blue" />
-            <MiniStat label="Fidelity 401k"      value={investSummary.fidelityValue}  total={investSummary.total} color="emerald" />
-            <MiniStat label="Etrade ESPP"        value={investSummary.esppValue}       total={investSummary.total} color="purple" />
-            <MiniStat label="Etrade RSU (vested)" value={investSummary.rsuValue}       total={investSummary.total} color="yellow" />
+            <MiniStat label="Robinhood"           value={investSummary.robinhoodValue} total={investSummary.total} color="blue" />
+            <MiniStat label="Fidelity 401k"       value={investSummary.fidelityValue}  total={investSummary.total} color="emerald" />
+            <MiniStat label="Etrade ESPP"         value={investSummary.esppValue}       total={investSummary.total} color="purple" />
+            <MiniStat label="Etrade RSU (vested)" value={investSummary.rsuValue}        total={investSummary.total} color="yellow" />
           </div>
         </div>
       )}
@@ -154,6 +246,21 @@ export function Overview() {
           <CategoryDonut data={byCategory} />
         </div>
       </div>
+
+      {/* Recent Transactions */}
+      {recentTx.length > 0 && (
+        <div className="bg-gray-900 rounded-xl border border-gray-800">
+          <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-800">
+            <h2 className="text-sm font-medium text-gray-400">Recent Transactions</h2>
+            <button onClick={() => navigate("/spending")} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">View all →</button>
+          </div>
+          <div className="divide-y divide-gray-800">
+            {recentTx.slice(0, 10).map(tx => (
+              <RecentTxRow key={tx.id} tx={tx} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -245,6 +352,29 @@ function MiniStat({ label, value, total, color }: { label: string; value: number
         {value > 0 ? currency(value) : "—"}
       </p>
       {allocation && <p className="text-xs text-gray-600 mt-0.5">{allocation}% of portfolio</p>}
+    </div>
+  );
+}
+
+function RecentTxRow({ tx }: { tx: any }) {
+  const EXCLUDED = new Set(['Investments', 'Income', 'CC Payment', 'Transfer']);
+  const isCredit = tx.type === 'credit';
+  const icon = CATEGORY_ICONS[tx.category] ?? <DollarSign size={13} />;
+  return (
+    <div className="flex items-center gap-3 px-5 py-3">
+      <div className="w-7 h-7 rounded-full bg-gray-800 flex items-center justify-center flex-shrink-0 text-gray-400">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-white truncate">{tx.description}</p>
+        <p className="text-xs text-gray-500">{shortDate(tx.date)} · {tx.account_name}</p>
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className={`text-sm font-medium ${isCredit ? "text-emerald-400" : EXCLUDED.has(tx.category) ? "text-gray-400" : "text-white"}`}>
+          {isCredit ? "+" : "−"}{currency(tx.amount)}
+        </p>
+        {tx.category && <p className="text-xs text-gray-600">{tx.category}</p>}
+      </div>
     </div>
   );
 }

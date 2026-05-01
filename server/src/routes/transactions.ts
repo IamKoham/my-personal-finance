@@ -6,7 +6,7 @@ const router = Router();
 
 router.get('/', (req, res) => {
   const db = req.app.locals.db;
-  const { start, end, account, category, type } = req.query;
+  const { start, end, account, category, type, limit } = req.query;
   let sql = 'SELECT * FROM transactions WHERE 1=1';
   const params: any[] = [];
 
@@ -17,6 +17,7 @@ router.get('/', (req, res) => {
   if (type)     { sql += ' AND type = ?'; params.push(type); }
 
   sql += ' ORDER BY date DESC';
+  if (limit) { sql += ' LIMIT ?'; params.push(Number(limit)); }
   res.json(dbAll(db, sql, params));
 });
 

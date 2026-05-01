@@ -13,8 +13,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getTransactions: (params?: Record<string, string>) => {
-    const q = params ? "?" + new URLSearchParams(params).toString() : "";
+  getTransactions: (params?: Record<string, string | number>) => {
+    const q = params ? "?" + new URLSearchParams(Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]))).toString() : "";
     return request<any[]>(`/transactions${q}`);
   },
   updateTransactionCategory: (id: number, category: string) =>
