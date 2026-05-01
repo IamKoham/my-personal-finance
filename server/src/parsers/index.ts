@@ -113,6 +113,7 @@ export function parseStatement(text: string, filename: string): ParseResult {
           bank,
           endingBalance: result.endingBalance,
           meta: {
+            endingBalance: result.endingBalance,
             planName: result.planName,
             vestedBalance: result.vestedBalance,
             employeeContributions: result.employeeContributions,

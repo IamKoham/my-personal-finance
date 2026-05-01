@@ -7,8 +7,12 @@ const PRESETS = [
   { label: '1Y', months: 12 },
 ];
 
-export function DateRangeFilter() {
-  const { start, end, setRange, setPreset } = useDateRange();
+interface Props {
+  page: string;
+}
+
+export function DateRangeFilter({ page }: Props) {
+  const { start, end, setRange, setPreset } = useDateRange(page);
 
   return (
     <div className="flex items-center gap-2 text-sm">

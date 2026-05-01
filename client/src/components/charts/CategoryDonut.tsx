@@ -2,6 +2,18 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { CATEGORY_COLORS } from '../../lib/constants';
 import { currency } from '../../lib/formatters';
 
+function DonutTooltip({ active, payload, total }: any) {
+  if (!active || !payload?.length) return null;
+  const { name, value } = payload[0];
+  return (
+    <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs shadow-lg">
+      <p className="text-white font-medium mb-0.5">{name}</p>
+      <p className="text-gray-300">{currency(value)}</p>
+      <p className="text-gray-500">{total > 0 ? ((value / total) * 100).toFixed(1) : 0}% of total</p>
+    </div>
+  );
+}
+
 const EXCLUDED = new Set(['Investments', 'Income', 'CC Payment', 'Transfer']);
 
 interface Props {
@@ -49,10 +61,7 @@ export function CategoryDonut({ data, onSelect }: Props) {
               <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] || '#6b7280'} />
             ))}
           </Pie>
-          <Tooltip
-            contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
-            formatter={(v: number) => [currency(v), '']}
-          />
+          <Tooltip content={<DonutTooltip total={total} />} />
         </PieChart>
       </ResponsiveContainer>
       <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center">

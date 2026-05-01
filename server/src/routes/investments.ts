@@ -53,7 +53,11 @@ router.get("/summary", (req, res) => {
   const robinhoodAccounts = dbAll(db, "SELECT name, balance FROM accounts WHERE institution='Robinhood' OR name LIKE '%Robinhood%'");
   const robinhoodValue = robinhoodAccounts.reduce((s: number, a: any) => s + Number(a.balance), 0);
   const fidelity = dbGet(db, "SELECT ending_balance, employee_contributions, employer_contributions FROM fidelity_snapshots ORDER BY id DESC LIMIT 1");
-  const fidelityValue = fidelity ? Number(fidelity.ending_balance) : 0;
+  let fidelityValue = fidelity ? Number(fidelity.ending_balance) : 0;
+  if (fidelityValue === 0) {
+    const fidelityAcct = dbGet(db, "SELECT balance FROM accounts WHERE institution LIKE '%Fidelity%' OR name LIKE '%Fidelity%' OR name LIKE '%401k%' ORDER BY id DESC LIMIT 1");
+    if (fidelityAcct) fidelityValue = Number(fidelityAcct.balance) || 0;
+  }
   const esppRow = dbGet(db, "SELECT COALESCE(SUM(market_value),0) as total FROM espp_lots");
   // Only count vested RSU shares — prorate market_value by vested_qty/granted_qty
   const rsuRow = dbGet(db, `

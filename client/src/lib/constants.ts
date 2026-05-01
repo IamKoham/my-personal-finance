@@ -5,18 +5,21 @@ export const CATEGORIES = [
 ] as const;
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  Groceries:     '#22c55e',
-  Restaurants:        '#f97316',
-  Transport:     '#3b82f6',
-  Subscriptions: '#a855f7',
-  Utilities:     '#06b6d4',
-  Rent:          '#ef4444',
-  Health:        '#ec4899',
-  Shopping:      '#eab308',
-  Travel:        '#14b8a6',
-  Income:        '#10b981',
-  Gasoline:      '#f59e0b',
-  Other:         '#6b7280',
+  Rent:          '#FF6B6B',
+  Misc:          '#A78BFA',
+  Transport:     '#60A5FA',
+  Subscriptions: '#F59E0B',
+  Utilities:     '#34D399',
+  Other:         '#FB923C',
+  Restaurants:   '#E879F9',
+  Shopping:      '#38BDF8',
+  Groceries:     '#4ADE80',
+  Health:        '#F472B6',
+  Travel:        '#2DD4BF',
+  Income:        '#10B981',
+  Gasoline:      '#FCD34D',
+  'CC Payment':  '#94A3B8',
+  Transfer:      '#64748B',
 };
 
 export const ACCOUNT_TYPES = ['checking', 'savings', 'credit', 'investment'] as const;
