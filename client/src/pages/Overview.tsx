@@ -69,6 +69,7 @@ export function Overview() {
   const [efData, setEfData]             = useState<any>(null);
   const [recentTx, setRecentTx]         = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [fadeKey, setFadeKey]           = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -93,7 +94,7 @@ export function Overview() {
         setEfData(ef);
         setRecentTx(tx);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setFadeKey(k => k + 1); });
   }, [start, end]);
 
   // ── Wealth snapshot ──────────────────────────────────────────────────────────
@@ -170,7 +171,7 @@ export function Overview() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6" key={fadeKey} style={{ animation: 'fadeIn 0.3s ease-out both' }}> {/* #20 fade on data change */}
 
       {/* Alerts */}
       {(criticalRecs.length > 0 || warningRecs.length > 0) && (
@@ -257,11 +258,11 @@ export function Overview() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div className="chart-panel bg-gray-900 rounded-xl p-4 border border-gray-800" style={{ animationDelay: '0.1s' }}>
           <h2 className="text-sm font-medium text-gray-400 mb-4">Monthly Cash Flow</h2>
           <SpendingBarChart data={summary} />
         </div>
-        <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+        <div className="chart-panel bg-gray-900 rounded-xl p-4 border border-gray-800" style={{ animationDelay: '0.2s' }}>
           <h2 className="text-sm font-medium text-gray-400 mb-4">Spending by Category</h2>
           <CategoryDonut data={byCategory} />
         </div>

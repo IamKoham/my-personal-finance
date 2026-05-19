@@ -60,6 +60,9 @@ export function CategoryDonut({ data, onSelect }: Props) {
             outerRadius={80}
             dataKey="value"
             onClick={(e) => onSelect?.(e.name)}
+            animationBegin={0}
+            animationDuration={700}
+            animationEasing="ease-out"
           >
             {main.map((entry) => (
               <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] || '#6b7280'} />

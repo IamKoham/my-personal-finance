@@ -98,5 +98,32 @@ export async function getRecommendations(db: Database): Promise<Recommendation[]
 
   recs.push({ id: 'R9', severity: 'warning', title: 'Check your 401K contribution %', detail: 'If below 6%, you may be missing employer match.', action: 'Log in to your 401K portal.' });
 
+  // R10: CC payment reminders
+  const creditCards = dbAll(db, "SELECT name, balance, due_day FROM accounts WHERE type='credit' AND balance > 0") as { name: string; balance: number; due_day: number | null }[];
+  const today = new Date();
+  for (const card of creditCards) {
+    const minPayment = Math.max(25, Number(card.balance) * 0.02);
+    if (card.due_day) {
+      // Compute next due date
+      const dueThisMonth = new Date(today.getFullYear(), today.getMonth(), card.due_day);
+      const dueDate = dueThisMonth > today ? dueThisMonth : new Date(today.getFullYear(), today.getMonth() + 1, card.due_day);
+      const daysUntil = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
+      const severity = daysUntil <= 5 ? 'critical' : daysUntil <= 10 ? 'warning' : 'info';
+      recs.push({
+        id: `R10_${card.name}`,
+        severity,
+        title: `${card.name}: payment due ${dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+        detail: `Balance $${Number(card.balance).toFixed(2)} · Min payment ~$${minPayment.toFixed(2)} · ${daysUntil} day${daysUntil !== 1 ? 's' : ''} away`,
+      });
+    } else {
+      recs.push({
+        id: `R10_${card.name}`,
+        severity: 'info',
+        title: `${card.name}: $${Number(card.balance).toFixed(2)} outstanding`,
+        detail: `Min payment ~$${minPayment.toFixed(2)}. Set due day in Accounts to get payment reminders.`,
+      });
+    }
+  }
+
   return recs;
 }

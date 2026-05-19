@@ -23,8 +23,8 @@ export function SpendingBarChart({ data }: Props) {
           formatter={(v: number) => [`$${v.toFixed(2)}`, '']}
         />
         <Legend wrapperStyle={{ fontSize: 11, color: '#9ca3af' }} />
-        <Bar dataKey="Income"   fill="#22c55e" radius={[4,4,0,0]} />
-        <Bar dataKey="Expenses" fill="#ef4444" radius={[4,4,0,0]} />
+        <Bar dataKey="Income"   fill="#22c55e" radius={[4,4,0,0]} animationBegin={0} animationDuration={700} animationEasing="ease-out" />
+        <Bar dataKey="Expenses" fill="#ef4444" radius={[4,4,0,0]} animationBegin={100} animationDuration={700} animationEasing="ease-out" />
       </BarChart>
     </ResponsiveContainer>
   );

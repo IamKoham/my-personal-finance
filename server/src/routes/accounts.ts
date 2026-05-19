@@ -19,12 +19,12 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const db = req.app.locals.db;
-  const { balance, credit_limit, institution } = req.body;
+  const { balance, credit_limit, institution, due_day } = req.body;
   const current = dbGet(db, 'SELECT * FROM accounts WHERE id=?', [req.params.id]);
   if (!current) return res.status(404).json({ error: 'Not found' });
   dbRun(db,
-    `UPDATE accounts SET balance=?, credit_limit=?, institution=?, updated_at=datetime('now') WHERE id=?`,
-    [balance ?? current.balance, credit_limit ?? current.credit_limit, institution ?? current.institution, req.params.id]
+    `UPDATE accounts SET balance=?, credit_limit=?, institution=?, due_day=?, updated_at=datetime('now') WHERE id=?`,
+    [balance ?? current.balance, credit_limit ?? current.credit_limit, institution ?? current.institution, due_day !== undefined ? due_day : current.due_day, req.params.id]
   );
   res.json({ ok: true });
 });
