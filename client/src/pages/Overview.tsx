@@ -389,8 +389,8 @@ function MiniStat({ label, value, total, color }: { label: string; value: number
   );
 }
 
-function Skel({ className }: { className?: string }) {
-  return <div className={`bg-gray-800 animate-pulse rounded ${className}`} />;
+function Skel({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={`bg-gray-800 animate-pulse rounded ${className}`} style={style} />;
 }
 
 function OverviewSkeleton() {
